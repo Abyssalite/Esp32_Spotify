@@ -2,7 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia_EventHub;
+using Custom_EventHub;
 using Esp32_Display_Connect.Events;
 
 public class Store

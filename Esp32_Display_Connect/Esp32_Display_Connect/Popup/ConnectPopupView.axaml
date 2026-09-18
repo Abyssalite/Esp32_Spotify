@@ -1,0 +1,30 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:popup="clr-namespace:Esp32_Display_Connect.Popup"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:Class="Esp32_Display_Connect.Popup.ConnectPopupView"
+    x:DataType="popup:ConnectPopupViewModel"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
+
+    <Grid Background="#66000000"
+        MinWidth="400"
+        Margin="24">
+
+        <Border CornerRadius="30"
+            Background="Black"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Padding="200 100">
+            <TextBlock FontSize="16"
+                FontWeight="600"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
+                Text="{Binding Text}" />
+        </Border>
+    </Grid>
+
+</UserControl>

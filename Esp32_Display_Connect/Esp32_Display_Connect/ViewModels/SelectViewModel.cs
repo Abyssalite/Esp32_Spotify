@@ -2,10 +2,11 @@
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using Avalonia_Navigation;
-using Avalonia_EventHub;
+using Custom_Navigation;
+using Custom_EventHub;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Custom_Popup;
 
 namespace Esp32_Display_Connect.ViewModels;
 
@@ -34,8 +35,9 @@ public partial class SelectViewModel : ViewModelBase
     public SelectViewModel(
         Store store,
         INavigatorService navigator,
-        IEventHub events
-    ):base(store, navigator, events)
+        IEventHub events,
+        IPopupHost popup
+    ):base(store, navigator, events, popup)
     {
         DevicesList = _store.DevicesList;
         AddDeviceCommand = new AsyncRelayCommand(addDeviceAsync);

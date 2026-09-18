@@ -3,7 +3,7 @@ using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
-using Avalonia_Navigation;
+using Custom_Navigation;
 
 namespace Esp32_Display_Connect.Android;
 

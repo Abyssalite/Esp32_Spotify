@@ -3,7 +3,9 @@
 Bluetooth::Bluetooth()
     : _server(nullptr),
       _rxCharacteristic(nullptr),
-      _txCharacteristic(nullptr) {}
+      _txCharacteristic(nullptr),
+      _messageHandler(nullptr),
+      _statusHandler(nullptr) {}
 
 void Bluetooth::begin()
 {
@@ -37,6 +39,11 @@ void Bluetooth::begin()
     Serial.println("BLE advertising started");
 }
 
+void Bluetooth::setMessageHandler(MessageHandler mHandler, StatusHandler sHandler) {
+    _messageHandler = mHandler;
+    _statusHandler  = sHandler;
+}
+
 void Bluetooth::send(const String& message) {
     if (_txCharacteristic == nullptr)
         return;
@@ -44,9 +51,6 @@ void Bluetooth::send(const String& message) {
     _txCharacteristic->setValue(message);
 
     _txCharacteristic->notify();
-
-    Serial.print("BLE TX: ");
-    Serial.println(message);
 }
 
 
@@ -58,10 +62,10 @@ void Bluetooth::RxCallbacks::onWrite(
 ){
     String value = characteristic->getValue().c_str();
 
-    Serial.print("BLE RX: ");
-    Serial.println(value);
-
-    _bluetooth->send("ESP32 received: " + value);
+    if (_bluetooth->_messageHandler != nullptr)
+    {
+        _bluetooth->_messageHandler(value);
+    }
 }
 
 
@@ -71,8 +75,10 @@ void Bluetooth::ServerCallbacks::onConnect(
     NimBLEServer* server,
     NimBLEConnInfo& connInfo
 ){
-    Serial.println("BLE client connected");
-    Serial.printf("Info, reason=%d\n", connInfo);
+    if (_bluetooth->_statusHandler != nullptr)
+    {
+       _bluetooth->_statusHandler("CONNECTED:1");
+    }
 }
 
 void Bluetooth::ServerCallbacks::onDisconnect(
@@ -80,6 +86,9 @@ void Bluetooth::ServerCallbacks::onDisconnect(
     NimBLEConnInfo& connInfo,
     int reason
 ){
-    Serial.printf("BLE client disconnected, reason=%d\n", reason);
+    if (_bluetooth->_statusHandler != nullptr)
+    {
+        _bluetooth->_statusHandler("DISCONNED:" + String(reason));
+    }
     NimBLEDevice::startAdvertising();
 }

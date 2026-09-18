@@ -26,7 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../Avalonia_Navigation/Avalonia_Navigation/Avalonia_Navigation.csproj" />
-    <ProjectReference Include="../../../Avalonia_EventHub/Avalonia_EventHub/Avalonia_EventHub.csproj" />
+    <ProjectReference Include="../../../Custom_Navigation/Custom_Navigation/Custom_Navigation.csproj" />
+    <ProjectReference Include="../../../Custom_EventHub/Custom_EventHub/Custom_EventHub.csproj" />
+    <ProjectReference Include="../../../Custom_Popup/Custom_Popup/Custom_Popup.csproj" />
+
   </ItemGroup>
 </Project>

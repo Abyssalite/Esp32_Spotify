@@ -35,6 +35,7 @@ void WebSocket::notifyClients(const JsonDocument* json) {
     serializeJson(*json, jsonString);
 
     _ws.textAll(jsonString);
+    _ws.cleanupClients();
 }
 
 void WebSocket::onWsEventStatic(

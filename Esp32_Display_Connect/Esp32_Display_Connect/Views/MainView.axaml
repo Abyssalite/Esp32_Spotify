@@ -11,5 +11,13 @@
 		<vm:MainViewModel />
 	</Design.DataContext>
 
-	<ContentControl Content="{Binding ViewHost.MainView}" />
+    <Grid>
+
+        <!-- Normal application -->
+        <ContentControl Content="{Binding ViewHost.MainView}" />
+
+        <!-- Popup -->
+        <ContentControl Content="{Binding Popuphost.Popup}" />
+
+    </Grid>
 </UserControl>

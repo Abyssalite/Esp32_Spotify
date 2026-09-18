@@ -1,8 +1,9 @@
-﻿using Avalonia_Navigation;
+﻿using Custom_Navigation;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using System.Threading.Tasks;
-using Avalonia_EventHub;
+using Custom_EventHub;
+using Custom_Popup;
 
 namespace Esp32_Display_Connect.ViewModels;
 
@@ -15,9 +16,9 @@ public partial class AddDeviceViewModel : ViewModelBase, IHandleBackNavigation
     public AddDeviceViewModel(
         Store store,
         INavigatorService navigator,
-        IEventHub events
-    ):base(store, navigator, events)
-    {
+        IEventHub events,
+        IPopupHost popup
+    ):base(store, navigator, events, popup)    {
         AddDeviceCommand = new AsyncRelayCommand(AddDevice);
     }
 

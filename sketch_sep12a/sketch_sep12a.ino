@@ -12,7 +12,7 @@
 
 #include "env.h"
 #include "cd_image.h"
-//#include "Bluetooth.h"
+#include "Bluetooth.h"
 #include "WebSocket.h"
 
 #define UPDATE_OLED_PERIOD 2000
@@ -38,10 +38,11 @@ float imageAngle = 0.0f;
 int scrollOffset = 0;
 bool scrollDirection = true;   // true = moving left, false = moving right
 
-char* ssid     = "";
-char* password = "";
-char* status   = "";
+String wifiSsid     = "";
+String wifiPassword = "";
+String wsStatus   = "";
 String message = "";
+String btStatus   = "";
 
 String apiKey   = "";
 String userName = "";
@@ -51,6 +52,7 @@ String songName   = "";
 String artistName = ""; 
 String currentSongName = "";
 bool isPlaying = false;
+bool isConnect = false;
 
 JsonDocument telemetryJson;
 Preferences preferences;
@@ -58,13 +60,24 @@ Preferences preferences;
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 TFT_eSPI tft = TFT_eSPI();
 JPEGDEC jpeg;
-//Bluetooth bluetooth;
+Bluetooth bluetooth;
 WebSocket websocket;
 
-void saveUser(String key, String user) {
+void saveUser(String user, String key) {
+  apiKey = user;
+  userName = key;
   preferences.begin("last.fm", false); //read-write
   preferences.putString("key", key);
   preferences.putString("user", user);
+  preferences.end();
+}
+
+void saveWifi(String ssid, String pass) {
+  wifiSsid = ssid;
+  wifiPassword = pass;
+  preferences.begin("wifi", false); //read-write
+  preferences.putString("ssid", ssid);
+  preferences.putString("pass", pass);
   preferences.end();
 }
 
@@ -82,6 +95,20 @@ String loadUserName() {
   return user;
 }
 
+String loadSsid() {
+  preferences.begin("wifi", true); //read-only
+  String ssid = preferences.getString("ssid", "");
+  preferences.end();
+  return ssid;
+}
+
+String loadWifiPass() {
+  preferences.begin("wifi", true); //read-only
+  String pass = preferences.getString("pass", "");
+  preferences.end();
+  return pass;
+}
+
 void drawOled () {
   u8g2.firstPage();
   do {
@@ -93,7 +120,7 @@ void drawOled () {
     u8g2.print(WiFi.localIP());
 
     u8g2.setCursor(4, 28);
-    u8g2.print(status);
+    u8g2.print(wsStatus);
   } while (u8g2.nextPage()); 
 }
 
@@ -413,20 +440,36 @@ bool getNowPlaying() {
   return true;
 }
 
-void onWebSocketMessage(const String& message)
-{
+void onWebSocketMessage(const String& message) {
     Serial.printf("WS RX: %s\n", message);
 }
-void onWebSocketStatus(const String& status)
-{
-    Serial.println(status);
+void onWebSocketStatus(const String& status) {
+    wsStatus = status;
+}
+void onBluetoothMessage(const String& message) {
+    if (message == "IP") {
+      if (btStatus == "CONNECTED") {
+        bluetooth.send(String(WiFi.localIP()));
+      }
+      return;
+    }
+
+    JsonDocument btJson;
+    deserializeJson(btJson, message);
+    if (btJson["Ssid"].as<String>() != "null") {
+      WiFi.disconnect(true);
+      saveWifi(btJson["Ssid"].as<String>(), btJson["Password"].as<String>());
+      isConnect = false;
+    }
+}
+void onBluetoothStatus(const String& status) {
+    btStatus = status.substring(9);
 }
 
 void setup() {
   Serial.begin(115200);
 
   WiFi.mode(WIFI_STA); 
-  WiFi.begin(SSID, PASSWORD);
   tft.init();
   tft.fillScreen(TFT_BLACK);
   tft.setRotation(2); // 180° flip
@@ -440,9 +483,15 @@ void setup() {
     userName = loadUserName();
   }
   else {
-    apiKey = LASTFM_API_KEY;
-    userName = LASTFM_USERNAME;
-    saveUser(apiKey, userName);
+    saveUser(LASTFM_USERNAME, LASTFM_API_KEY);
+  }
+
+  if (SSID == "" || PASSWORD == "") {
+    wifiSsid = loadSsid();
+    wifiPassword = loadWifiPass();
+  }
+  else {
+    saveWifi(SSID, PASSWORD);
   }
   
   delay(500);
@@ -456,7 +505,8 @@ void setup() {
   websocket.setMessageHandler(onWebSocketMessage, onWebSocketStatus);
   websocket.begin();
   delay(500);
-  //bluetooth.begin();
+  bluetooth.begin();
+  bluetooth.setMessageHandler(onBluetoothMessage, onBluetoothStatus);
 }
 
 void loop() {
@@ -486,6 +536,16 @@ void loop() {
   if (now - lastScrollTime >= SCROLL_INTERVAL) {
     lastScrollTime = now;
     showNowPlaying();
+  }
+
+  if (now - reconnectTimer >= RECONNECT_PERIOD) {
+    reconnectTimer = now;
+    if (!isConnect && WiFi.status() != WL_CONNECTED)
+      if (wifiSsid != "" && wifiPassword != "") {
+        WiFi.disconnect(true);
+        WiFi.begin(wifiSsid, wifiPassword);
+        isConnect = true;
+      }
   }
 
   if (now - lastNotify >= NOTIFY_PERIOD) {

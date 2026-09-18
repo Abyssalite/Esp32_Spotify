@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:popup="clr-namespace:Esp32_Display_Connect.Popup"
+        x:Class="Esp32_Display_Connect.Popup.InputPopupView"
+        x:DataType="popup:InputPopupViewModel"
+        d:DesignHeight="450"
+        d:DesignWidth="800"
+        mc:Ignorable="d">
+
+    <Grid Background="#66000000"
+        MinWidth="400"
+        Margin="24">
+        
+        <Border CornerRadius="30"
+            Background="Black"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Padding="200 100">
+
+            <Grid HorizontalAlignment="Stretch" 
+                VerticalAlignment="Center"
+                RowDefinitions="*,Auto">
+
+                <StackPanel Grid.Row="0" HorizontalAlignment="Stretch">
+                    <TextBox PlaceholderText="Wifi name" Text="{Binding SSID}" Margin="8" />
+                    <TextBox PlaceholderText="Password" Text="{Binding Pass}" Margin="8" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        Classes="Tertiary"
+                        Command="{Binding SaveCommand}"
+                        Content="OK" />
+                    <Button
+                        Command="{Binding CloseCommand}"
+                        Content="Cancel" />
+                </StackPanel>
+            </Grid>   
+        </Border>
+    </Grid>
+
+</UserControl>

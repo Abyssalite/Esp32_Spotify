@@ -2,6 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Esp32_Display_Connect.ViewModels;
+using Esp32_Display_Connect.Popup;
 
 namespace Esp32_Display_Connect;
 
@@ -25,6 +26,6 @@ public class ViewLocator : IDataTemplate
 
     public bool Match(object? data)
     {
-        return data is ViewModelBase;
+        return data is ViewModelBase || data is PopupViewModelBase;
     }
 }

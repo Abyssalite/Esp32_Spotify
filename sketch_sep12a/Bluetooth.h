@@ -3,20 +3,27 @@
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
+#include <string>
 
 #include "env.h"
 
 class Bluetooth {
   public:
+    using MessageHandler = void (*)(const String& message);
+    using StatusHandler = void (*)(const String& status);
+
     Bluetooth();
 
     void begin();
     void send(const String& message);
+    void setMessageHandler(MessageHandler mHandler, StatusHandler sHandler);
 
   private:
     NimBLEServer* _server;
     NimBLECharacteristic* _rxCharacteristic;
     NimBLECharacteristic* _txCharacteristic;
+    MessageHandler _messageHandler;
+    StatusHandler  _statusHandler;
 
     class RxCallbacks : public NimBLECharacteristicCallbacks {
       public:

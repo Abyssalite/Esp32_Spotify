@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia_EventHub;
+using Custom_EventHub;
 using Linux.Bluetooth;
 using Linux.Bluetooth.Extensions;
 using Esp32_Display_Connect.Events;
@@ -16,11 +16,13 @@ public sealed class BluetoothService : IBluetoothService
 
     private IGattCharacteristic1? _rxCharacteristic;
     private IGattCharacteristic1? _txCharacteristic;
+    private IGattService1? _service;
+
     private IDisposable? _txNotificationWatch;
 
     public async Task<IReadOnlyList<BluetoothDevice>> ScanAsync(
-        TimeSpan duration,
         IEventHub _events,
+        int sec = 20,
         CancellationToken cancellationToken = default
     ){
         _adapter ??= await GetAdapterAsync();
@@ -44,6 +46,8 @@ public sealed class BluetoothService : IBluetoothService
                     Console.WriteLine($"Error reading Bluetooth device: {ex}");
                 }
             });
+
+        TimeSpan duration = TimeSpan.FromSeconds(sec);
 
         Console.WriteLine($"Starting BLE scan for {duration.TotalSeconds} seconds...");
 
@@ -130,7 +134,7 @@ public sealed class BluetoothService : IBluetoothService
         };
     }
 
-    public async Task ConnectAsync(BluetoothDevice device)
+    public async Task<BluetoothDevice> ConnectAsync(BluetoothDevice device)
     {
         _adapter ??= await GetAdapterAsync();
         var devices = await _adapter.GetDevicesAsync();
@@ -146,7 +150,100 @@ public sealed class BluetoothService : IBluetoothService
         await linuxDevice.ConnectAsync();
         _connectedDevice = linuxDevice;
 
+        await WaitForServicesResolvedAsync(linuxDevice, TimeSpan.FromSeconds(10));
+
         Console.WriteLine("BLE connected.");
+        await DiscoverGattAsync(device);
+        return device;
+    }
+
+    private async Task DiscoverGattAsync(BluetoothDevice device)
+    {
+        if (_connectedDevice is null)
+            throw new InvalidOperationException("No Bluetooth device is connected.");
+
+        var services = await _connectedDevice.GetServicesAsync();
+
+        foreach (var service in services)
+        {
+            var serviceProperties = await service.GetAllAsync();
+
+            if (!string.Equals(
+                    serviceProperties.UUID,
+                    Env.ServiceUuid,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _service = service;
+
+            var characteristics = await service.GetCharacteristicsAsync();
+
+            foreach (var characteristic in characteristics)
+            {
+                var properties = await characteristic.GetAllAsync();
+
+                if (properties.Flags.Contains("write"))
+                {
+                    device.RxCharacteristicUuid = properties.UUID;
+                    _rxCharacteristic = characteristic;
+                }
+
+                if (properties.Flags.Contains("notify"))
+                {
+                    device.TxCharacteristicUuid = properties.UUID;
+                    _txCharacteristic = characteristic;
+                }
+            }
+
+            break;
+        }
+
+        if (_service is null)
+            throw new InvalidOperationException("Service was not found.");
+
+        if (_rxCharacteristic is null)
+            throw new InvalidOperationException("RX characteristic was not found.");
+
+        if (_txCharacteristic is null)
+            throw new InvalidOperationException("TX characteristic was not found.");
+    }
+
+    private async Task WaitForServicesResolvedAsync(IDevice1 device, TimeSpan timeout)
+    {
+        var properties = await device.GetAllAsync();
+
+        if (properties.ServicesResolved)
+            return;
+
+        var tcs = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var timeoutCts = new CancellationTokenSource(timeout);
+
+        timeoutCts.Token.Register(() =>
+        {
+            tcs.TrySetException(
+                new TimeoutException("Bluetooth GATT service discovery timed out."));
+        });
+
+        using var watch = await device.WatchPropertiesAsync(
+            changes =>
+            {
+                foreach (var change in changes.Changed)
+                {
+                    if (change.Key != "ServicesResolved")
+                        continue;
+
+                    if (change.Value is bool resolved && resolved)
+                    {
+                        tcs.TrySetResult(true);
+                    }
+                }
+            });
+
+        await tcs.Task;
     }
 
     public async Task DisconnectAsync()
@@ -157,7 +254,11 @@ public sealed class BluetoothService : IBluetoothService
             await _txCharacteristic.StopNotifyAsync();
 
         await _connectedDevice.DisconnectAsync();
+        
         _connectedDevice = null;
+        _txCharacteristic = null;
+        _rxCharacteristic = null;
+        _service = null;
 
         Console.WriteLine("BLE disconnected.");
     }
@@ -165,15 +266,7 @@ public sealed class BluetoothService : IBluetoothService
     public async Task SendAsync(string message)
     {
         if (_connectedDevice is null)
-            throw new InvalidOperationException(
-                "No Bluetooth device is connected.");
-
-        var service = await _connectedDevice.GetServiceAsync(Env.ServiceUuid);
-
-        if (service is null)
-            throw new InvalidOperationException($"BLE service was not found.");
-
-        _rxCharacteristic = await service.GetCharacteristicAsync(Env.RxCharacteristicUuid);
+            throw new InvalidOperationException("No Bluetooth device is connected.");
 
         if (_rxCharacteristic is null)
             throw new InvalidOperationException($"RX characteristic was not found.");
@@ -187,15 +280,10 @@ public sealed class BluetoothService : IBluetoothService
 
     public async Task StartReceiveAsync(IEventHub _events)
     {
+        Console.WriteLine("Start BLE RX.");
+
         if (_connectedDevice is null)
             throw new InvalidOperationException("No Bluetooth device is connected.");
-
-        var service = await _connectedDevice.GetServiceAsync(Env.ServiceUuid);
-
-        if (service is null)
-            throw new InvalidOperationException("BLE service was not found.");
-
-        _txCharacteristic = await service.GetCharacteristicAsync(Env.TxCharacteristicUuid);
 
         if (_txCharacteristic is null)
             throw new InvalidOperationException("TX characteristic was not found.");
@@ -217,7 +305,7 @@ public sealed class BluetoothService : IBluetoothService
 
         await _txCharacteristic.StartNotifyAsync();
 
-        Console.WriteLine("BLE notifications started.");
+        Console.WriteLine("BLE RX started.");
     }
 
     public async Task StopReceiveAsync()
@@ -228,6 +316,6 @@ public sealed class BluetoothService : IBluetoothService
         _txNotificationWatch?.Dispose();
         _txNotificationWatch = null;
 
-        Console.WriteLine("BLE notifications stopped.");
+        Console.WriteLine("BLE RX stopped.");
     }
 }

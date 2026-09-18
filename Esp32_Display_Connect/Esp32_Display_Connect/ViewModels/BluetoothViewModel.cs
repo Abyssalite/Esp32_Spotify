@@ -1,12 +1,15 @@
-﻿using Avalonia_Navigation;
+﻿using Custom_Navigation;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using System.Threading.Tasks;
-using Avalonia_EventHub;
+using Custom_EventHub;
 using System;
 using Esp32_Display_Connect.Events;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using Custom_Popup;
+using Esp32_Display_Connect.Popup;
+using System.Text.Json;
 
 namespace Esp32_Display_Connect.ViewModels;
 
@@ -37,8 +40,9 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         Store store,
         INavigatorService navigator,
         IEventHub events,
-        IBluetoothService bluetooth
-    ):base(store, navigator, events)
+        IBluetoothService bluetooth,
+        IPopupHost popup
+    ):base(store, navigator, events, popup)
     {             
         _bluetooth = bluetooth;
   
@@ -67,34 +71,49 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
 
     async Task ScanAsync()
     {
-        _ = await _bluetooth.ScanAsync(TimeSpan.FromSeconds(30), _events);
+        _ = await _bluetooth.ScanAsync(_events, 30);
     }
 
     private async Task ClearAsync()
     {
         _selectedBtDevice = null;
         OnPropertyChanged(nameof(SelectedBtDevice));
+
+        _popup.Close();
     }
 
     private async Task SelectDeviceAsync(BluetoothDevice device)
     {
+        BluetoothDevice connectedDevice = new();
+        string lanAddress = "";
         try
-        {
-            await _bluetooth.ConnectAsync(device);
+        {            
+            var notify = new ConnectPopupViewModel("Connecting...", _popup);
+            _ = _popup.ShowNotifyPopup(notify);
+            connectedDevice = await _bluetooth.ConnectAsync(device);
         } 
         catch
         {
             Console.WriteLine("Can't connect device.");
             await _navigator.OpenPrevious();
         }
-        finally
-        {
-            await _bluetooth.StartReceiveAsync(_events);  
 
+        await _bluetooth.StartReceiveAsync(_events);  
+        _popup.Close();
+        var input = new InputPopupViewModel(_popup);
+        var tmp = await _popup.ShowInputPopup(input);
+        if (tmp is WifiInput wifi)
+        {
+            var json = JsonSerializer.Serialize(wifi);
+
+            await _bluetooth.SendAsync(json);
         }
+        await _bluetooth.SendAsync("IP");
+
+        //await AddDevice(lanAddress, connectedDevice);
     }
 
-    private async Task AddDevice(BluetoothDevice btDevice)
+    private async Task AddDevice(object? input, BluetoothDevice btDevice)
     {
         string name = Helpers.InputOrDefault(btDevice.Name, "");
         if (name == "")

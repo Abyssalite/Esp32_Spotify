@@ -4,8 +4,9 @@ using Avalonia.Markup.Xaml;
 using Esp32_Display_Connect.ViewModels;
 using Esp32_Display_Connect.Views;
 using Microsoft.Extensions.DependencyInjection;
-using Avalonia_Navigation;
-using Avalonia_EventHub;
+using Custom_Navigation;
+using Custom_EventHub;
+using Custom_Popup;
 
 namespace Esp32_Display_Connect;
 
@@ -26,8 +27,9 @@ public partial class App : Application
         // Register all the services needed for the application to run
         IServiceCollection collection = new ServiceCollection();
         collection.AddCommonServices();
-        collection.AddAvaloniaNavigation();
-        collection.AddAvaloniaEventHub();
+        collection.AddCustomNavigation();
+        collection.AddCustomEventHub();
+        collection.AddCustomPopup();
 
         // Creates a ServiceProvider containing services from the provided IServiceCollection
         Services = collection.BuildServiceProvider();

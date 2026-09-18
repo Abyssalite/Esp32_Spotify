@@ -1,7 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia_EventHub;
-using Avalonia_Navigation;
+using Custom_EventHub;
+using Custom_Navigation;
+using Custom_Popup;
 using Esp32_Display_Connect.Events;
 
 namespace Esp32_Display_Connect.ViewModels;
@@ -23,8 +24,9 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
         INavigatorService navigator,
         IEventHub events,
         ITabView tabs,
-        IDeviceConnectionService connection
-    ):base(store, navigator, events)
+        IDeviceConnectionService connection,
+        IPopupHost popup
+    ):base(store, navigator, events, popup)
     {        
         _connection = connection;
         _tabview = tabs;
