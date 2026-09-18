@@ -73,7 +73,6 @@ void Bluetooth::ServerCallbacks::onConnect(
 ){
     Serial.println("BLE client connected");
     Serial.printf("Info, reason=%d\n", connInfo);
-
 }
 
 void Bluetooth::ServerCallbacks::onDisconnect(

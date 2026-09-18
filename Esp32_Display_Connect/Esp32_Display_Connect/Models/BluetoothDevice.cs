@@ -1,8 +1,8 @@
 public sealed class BluetoothDevice
 {
-    public required string Id { get; init; }
+    public string? Id { get; init; }
 
-    public required string Address { get; init; }
+    public string? Address { get; init; }
 
     public string? Name { get; init; }
 

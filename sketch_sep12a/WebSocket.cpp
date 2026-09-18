@@ -60,17 +60,13 @@ void WebSocket::onWsEvent(
 ) {
     if (type == WS_EVT_CONNECT){
         _status = "WS connected";
-        Serial.println("WS client connected");
     }
     else if (type == WS_EVT_DISCONNECT){
         _status = "WS disconnect";
-        Serial.println("WS client disconnected");
+        _ws.cleanupClients();
     }
     else if (type == WS_EVT_DATA){
         _message = (reinterpret_cast<char*>(data), len);
-
-        Serial.print("WS RX: ");
-        Serial.println(_message);
     }
 
     if (_messageHandler != nullptr) {

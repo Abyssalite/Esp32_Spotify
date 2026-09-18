@@ -78,9 +78,43 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
 
     private async Task SelectDeviceAsync(BluetoothDevice device)
     {
-        await _bluetooth.ConnectAsync(device);
-        await _bluetooth.StartReceiveAsync(_events);
-        await _bluetooth.SendAsync("test");
+        try
+        {
+            await _bluetooth.ConnectAsync(device);
+        } 
+        catch
+        {
+            Console.WriteLine("Can't connect device.");
+            await _navigator.OpenPrevious();
+        }
+        finally
+        {
+            await _bluetooth.StartReceiveAsync(_events);  
+
+        }
+    }
+
+    private async Task AddDevice(BluetoothDevice btDevice)
+    {
+        string name = Helpers.InputOrDefault(btDevice.Name, "");
+        if (name == "")
+            return;
+
+        string address = Helpers.InputOrDefault(btDevice.Address, "");
+        if (!Helpers.IsValidIP(address))
+            return;
+
+        var device = new Device()
+        {
+            Name = name,
+            Address = address,
+            bluetooth = btDevice
+        };
+
+        var result = await _store.StoreAddDevice(device);
+        if (result) return;
+        
+        await _navigator.OpenPrevious();
     }
 
     async Task<bool> IHandleBackNavigation.HandleBackAsync()

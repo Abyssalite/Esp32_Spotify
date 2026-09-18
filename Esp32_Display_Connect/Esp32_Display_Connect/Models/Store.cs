@@ -24,12 +24,12 @@ public class Store
         _events.Publish(new SelectedDeviceChangedEvent(SelectedDevice));
     }
 
-    public void StoreUpdateDeviceStatus(DeviceStatus? status)
+    public void StoreAddBlurtoothDevice(BluetoothDevice? device)
     {
-        if (status == null || SelectedDevice == null) return;
+        if (device == null || SelectedDevice == null) return;
 
-        SelectedDevice.deviceStatus = status;
-        _events.Publish(new DeviceStatusChangedEvent());
+        SelectedDevice.bluetooth = device;
+        _events.Publish(new BluetoothDeviceAddEvent());
     }
 
     public async Task<bool> StoreAddDevice(Device device)

@@ -13,6 +13,7 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
     private readonly ITabView _tabview;
     public ITabView TabView => _tabview;
     private readonly IDeviceConnectionService _connection;
+    public DeviceStatus? DeviceInfo { set; get; }
 
     public Device? SelectedDevice { get; }
     public string? Status { set; get; }
@@ -32,28 +33,11 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
 
         _subscriptions.Add(_events.Subscribe<StatusReceivedEvent>(async evt =>
         {
-            _store.StoreUpdateDeviceStatus(evt.deviceStatus);
+            DeviceInfo = evt.deviceStatus;
         }));
         _subscriptions.Add(_events.Subscribe<ConnectionStatusChangedEvent>(async evt =>
         {
             Status = evt.connectionStatus;
-        }));
-
-        _subscriptions.Add(_events.Subscribe<SettingChangedEvent>(evt =>
-        {
-            if (SelectedDevice.deviceStatus != null)
-            {
-                _delayToken?.Cancel();
-                _delayToken = new CancellationTokenSource();
-
-                var token = _delayToken.Token;
-                Task.Delay(50, token).ContinueWith(async t =>
-                {
-                    if (t.IsCanceled) return;
-
-                    await SendSetting(evt.name, evt.value);
-                });
-            }
         }));
 
         _ = ConnectAsync();
@@ -66,9 +50,21 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
         await _connection.ConnectAsync(SelectedDevice, _events);
     }
 
-    public async Task SendSetting(string name, float value)
+    public void SendSetting(string name, float value)
     {
-        _connection.Send($"{name}:{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        if (DeviceInfo != null)
+        {
+            _delayToken?.Cancel();
+            _delayToken = new CancellationTokenSource();
+
+            var token = _delayToken.Token;
+            Task.Delay(50, token).ContinueWith(async t =>
+            {
+                if (t.IsCanceled) return;
+                
+                _connection.Send($"{name}:{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            });
+        }
     }
 
     private async Task ClearAsync()

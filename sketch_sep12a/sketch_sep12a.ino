@@ -12,7 +12,7 @@
 
 #include "env.h"
 #include "cd_image.h"
-#include "Bluetooth.h"
+//#include "Bluetooth.h"
 #include "WebSocket.h"
 
 #define UPDATE_OLED_PERIOD 2000
@@ -58,7 +58,7 @@ Preferences preferences;
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 TFT_eSPI tft = TFT_eSPI();
 JPEGDEC jpeg;
-Bluetooth bluetooth;
+//Bluetooth bluetooth;
 WebSocket websocket;
 
 void saveUser(String key, String user) {
@@ -415,7 +415,7 @@ bool getNowPlaying() {
 
 void onWebSocketMessage(const String& message)
 {
-    Serial.println(message);
+    Serial.printf("WS RX: %s\n", message);
 }
 void onWebSocketStatus(const String& status)
 {
@@ -456,7 +456,7 @@ void setup() {
   websocket.setMessageHandler(onWebSocketMessage, onWebSocketStatus);
   websocket.begin();
   delay(500);
-  bluetooth.begin();
+  //bluetooth.begin();
 }
 
 void loop() {
@@ -476,7 +476,8 @@ void loop() {
       imageAngle = 0.0f;
   }
 
-  if (now - apiTimer >= API_PERIOD && (WiFi.status() == WL_CONNECTED)) {
+  if (now - apiTimer >= API_PERIOD && 0)//(WiFi.status() == WL_CONNECTED)) 
+  {
     apiTimer = now;
     if (!getNowPlaying())
       Serial.println("Failed to get current song");

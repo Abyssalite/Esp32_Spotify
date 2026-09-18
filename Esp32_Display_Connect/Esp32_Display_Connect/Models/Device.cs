@@ -7,7 +7,7 @@ public class Device
     public string? Status { get; set; } = "";
     public required string Name { get; set; }
     public Guid ID = Guid.NewGuid();
-    public DeviceStatus? deviceStatus { get; set; } = new();
+    public BluetoothDevice? bluetooth { get; set; } = new();
 
     public Device()
     {
