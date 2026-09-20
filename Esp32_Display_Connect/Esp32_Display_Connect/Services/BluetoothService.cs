@@ -274,8 +274,6 @@ public sealed class BluetoothService : IBluetoothService
         var data = System.Text.Encoding.UTF8.GetBytes(message);
 
         await _rxCharacteristic.WriteValueAsync(data, new Dictionary<string, object>());
-
-        Console.WriteLine($"Sent: {message}");
     }
 
     public async Task StartReceiveAsync(IEventHub _events)

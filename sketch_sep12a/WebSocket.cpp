@@ -5,15 +5,12 @@ WebSocket* WebSocket::_instance = nullptr;
 WebSocket::WebSocket()
     : _server(80),
       _ws("/ws"),
-      _status(""),
       _messageHandler(nullptr),
-      _statusHandler(nullptr)
-{
+      _statusHandler(nullptr) {
     _instance = this;
 }
 
-void WebSocket::begin()
-{
+void WebSocket::begin() {
     _ws.onEvent(WebSocket::onWsEventStatic);
 
     _server.addHandler(&_ws);
@@ -21,6 +18,11 @@ void WebSocket::begin()
 
     Serial.println("WS started");
 }
+
+void WebSocket::cleanClient() {
+    _ws.cleanupClients();
+}
+
 
 void WebSocket::setMessageHandler(MessageHandler mHandler, StatusHandler sHandler) {
     _messageHandler = mHandler;
@@ -33,9 +35,7 @@ void WebSocket::notifyClients(const JsonDocument* json) {
 
     String jsonString;
     serializeJson(*json, jsonString);
-
     _ws.textAll(jsonString);
-    _ws.cleanupClients();
 }
 
 void WebSocket::onWsEventStatic(
@@ -58,22 +58,18 @@ void WebSocket::onWsEvent(
     void* arg,
     uint8_t* data,
     size_t len
-) {
-    if (type == WS_EVT_CONNECT){
-        _status = "WS connected";
+){
+    if (type == WS_EVT_CONNECT) {
+        if (_messageHandler != nullptr)
+            _messageHandler("WS connected");
     }
-    else if (type == WS_EVT_DISCONNECT){
-        _status = "WS disconnect";
+    else if (type == WS_EVT_DISCONNECT) {
+        if (_messageHandler != nullptr)
+            _messageHandler("WS disconned");
         _ws.cleanupClients();
     }
-    else if (type == WS_EVT_DATA){
-        _message = (reinterpret_cast<char*>(data), len);
-    }
-
-    if (_messageHandler != nullptr) {
-        _messageHandler(_message);
-    }
-    if (_statusHandler != nullptr) {
-        _statusHandler(_status);
+    else if (type == WS_EVT_DATA) {
+        if (_statusHandler != nullptr)
+            _statusHandler(String((char*)data).substring(0, len));
     }
 }

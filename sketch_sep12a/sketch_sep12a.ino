@@ -1,6 +1,5 @@
 #include <FS.h>
-#include <SPIFFS.h>
-#include <U8g2lib.h>
+//#include <U8g2lib.h>
 #include <TFT_eSPI.h>
 #include <SPI.h>
 #include <string>
@@ -24,7 +23,10 @@
 #define DISPLAY_WIDTH 240
 #define SCROLL_INTERVAL 500
 #define SCROLL_STEP 8
+#define RESET_BUTTON 9
+#define RESET_DELAY 5000 // 5s debounce
 
+unsigned long resetPress = 0;
 unsigned long updateOledTimer = 0;
 unsigned long updateTftTimer = 0;
 unsigned long reconnectTimer = 0;
@@ -32,11 +34,13 @@ unsigned long apiTimer = 0;
 unsigned long lastNotify = 0;
 unsigned long lastScrollTime = 0;
 
-//uint8_t count = 0;
+uint8_t spin = 0;
 uint16_t *imageBuffer = nullptr;
 float imageAngle = 0.0f;
 int scrollOffset = 0;
 bool scrollDirection = true;   // true = moving left, false = moving right
+volatile bool isReset = false;
+volatile bool canSetInterrupt = true;
 
 String wifiSsid     = "";
 String wifiPassword = "";
@@ -52,16 +56,39 @@ String songName   = "";
 String artistName = ""; 
 String currentSongName = "";
 bool isPlaying = false;
-bool isConnect = false;
+bool isWifiConnect = false;
+bool isIpRequest = false;
+String isSetup = "false";
+String isReady = "false";
 
-JsonDocument telemetryJson;
+//JsonDocument telemetryJson;
 Preferences preferences;
 
-U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
+//U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 TFT_eSPI tft = TFT_eSPI();
 JPEGDEC jpeg;
 Bluetooth bluetooth;
 WebSocket websocket;
+
+bool debounceReset(uint8_t btn, uint8_t isHigh) {
+  if (isHigh) return false;
+  if (canSetInterrupt) {
+    resetPress = millis();
+    canSetInterrupt = false;
+  }
+  if (millis() - resetPress > RESET_DELAY) {
+    canSetInterrupt = true;
+    resetPress = 0;
+    return true;
+  }
+  return false;
+}
+
+void IRAM_ATTR resetButtonISR() {
+  if (debounceReset(RESET_BUTTON, digitalRead(RESET_BUTTON))) {
+    isReset = true;
+  }
+}
 
 void saveUser(String user, String key) {
   apiKey = user;
@@ -78,6 +105,15 @@ void saveWifi(String ssid, String pass) {
   preferences.begin("wifi", false); //read-write
   preferences.putString("ssid", ssid);
   preferences.putString("pass", pass);
+  preferences.end();
+}
+
+void saveSetup(String setup, String ready) {
+  isSetup = setup;
+  isReady = ready;
+  preferences.begin("esp", false); //read-write
+  preferences.putString("setup", setup);
+  preferences.putString("ready", ready);
   preferences.end();
 }
 
@@ -109,19 +145,40 @@ String loadWifiPass() {
   return pass;
 }
 
-void drawOled () {
+String loadEspSetup() {
+  preferences.begin("esp", true); //read-only
+  String setup = preferences.getString("setup", "false");
+  preferences.end();
+  return setup;
+}
+
+String loadEspReady() {
+  preferences.begin("esp", true); //read-only
+  String ready = preferences.getString("ready", "false");
+  preferences.end();
+  return ready;
+}
+
+/*void drawOled(String a, String b, String c) {
   u8g2.firstPage();
   do {
     u8g2.setFont(u8g2_font_5x8_tf);
     u8g2.setCursor(4, 8);
-    u8g2.print("Connected to");
+    u8g2.print(a);
 
     u8g2.setCursor(4, 18);
-    u8g2.print(WiFi.localIP());
+    u8g2.print(b);
 
     u8g2.setCursor(4, 28);
-    u8g2.print(wsStatus);
+    u8g2.print(c);
   } while (u8g2.nextPage()); 
+}*/
+
+void reconnectSpinner() {
+  const char spinner[] = { '|', '/', '-', '\\' }; 
+
+  drawScrollingText("Connecting", 120, TFT_WHITE, 2);
+  drawScrollingText(String(spinner[spin]), 160, TFT_WHITE, 4);
 }
 
 int savePixel(JPEGDRAW *pDraw) {
@@ -217,11 +274,11 @@ bool downloadAndSaveImage(int x, int y) {
   HTTPClient http;
   http.begin(imageUrl);
   http.setTimeout(15000);
+
   int httpCode = http.GET();
 
   if (httpCode != 200) {
-    Serial.println("Download Image failed.");
-    Serial.printf("HTTP error: %d\n", httpCode);
+    Serial.printf("Download Image failed: %d\n", httpCode);
     http.end();
     return false;
   }
@@ -230,6 +287,7 @@ bool downloadAndSaveImage(int x, int y) {
   int totalLen = http.getSize();
   if (totalLen <= 0) return false;
 
+  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
   uint8_t *buffer = (uint8_t *)malloc(totalLen);
   if (!buffer) {
     Serial.println("Not enough memory");
@@ -255,12 +313,10 @@ bool downloadAndSaveImage(int x, int y) {
   http.end();
 
   if (bytesRead != totalLen) {
-    Serial.println("Incomplete download - abort");
+    Serial.println("Incomplete download");
     free(buffer);
     return false;
   }
-  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
-
   // ===== Decode with JPEGDEC =====
   if (jpeg.openRAM(buffer, totalLen, savePixel)) {
     //Serial.printf("JPEG size: %d x %d\n", jpeg.getWidth(), jpeg.getHeight());
@@ -346,7 +402,7 @@ void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize) {
 void showNowPlaying() {
   // Draw album art
   if (songName != currentSongName) {
-    imageUrl = getItunesArtwork(artistName, songName);
+    imageUrl = getArtwork(artistName, songName);
 
     if (!downloadAndSaveImage(0, 0))
       if(!loadDefaultPicture())
@@ -365,7 +421,7 @@ void showNowPlaying() {
   drawScrollingText(artistName, 295, TFT_CYAN, 1);
 }
 
-String getItunesArtwork(String artist, String song) {
+String getArtwork(String artist, String song) {
   if (artist == "" || song == "") {
     Serial.println("Missing song datas.");
     return "";
@@ -378,9 +434,13 @@ String getItunesArtwork(String artist, String song) {
   String url = "https://itunes.apple.com/search?term=" + term + "&entity=song&limit=1";
 
   http.begin(url);
+  http.setTimeout(15000);
+
   int code = http.GET();
 
   if (code != 200) {
+    Serial.printf("ITune error: %d\n", code);
+
     http.end();
     return "";
   }
@@ -413,10 +473,11 @@ bool getNowPlaying() {
   url += "&limit=1&format=json";
 
   http.begin(url);
+  http.setTimeout(15000);
+
   int httpCode = http.GET();
 
   if (httpCode != 200) {
-    Serial.println("Get Song Data failed.");
     Serial.printf("Last.fm error: %d\n", httpCode);
     http.end();
     return false;
@@ -446,24 +507,28 @@ void onWebSocketMessage(const String& message) {
 void onWebSocketStatus(const String& status) {
     wsStatus = status;
 }
-void onBluetoothMessage(const String& message) {
-    if (message == "IP") {
-      if (btStatus == "CONNECTED") {
-        bluetooth.send(String(WiFi.localIP()));
-      }
-      return;
-    }
 
+void onBluetoothMessage(const String& message) {
     JsonDocument btJson;
     deserializeJson(btJson, message);
+
     if (btJson["Ssid"].as<String>() != "null") {
       WiFi.disconnect(true);
       saveWifi(btJson["Ssid"].as<String>(), btJson["Password"].as<String>());
-      isConnect = false;
+      isWifiConnect = false;
+      return;
+    }
+    if (btJson["Ip"].as<String>() == "REQUEST") {
+      isIpRequest = true;
+      return;
+    }
+    if (btJson["Setup"].as<String>() == "TRUE") {
+      saveSetup("true", "false");
+      return;
     }
 }
 void onBluetoothStatus(const String& status) {
-    btStatus = status.substring(9);
+    btStatus = status.substring(0, 9);
 }
 
 void setup() {
@@ -474,8 +539,11 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   tft.setRotation(2); // 180° flip
 
-  u8g2.begin();
-  u8g2.enableUTF8Print();
+  //u8g2.begin();
+  //u8g2.enableUTF8Print();
+
+  pinMode(RESET_BUTTON, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
 
   // #define in env.h
   if (LASTFM_API_KEY == "" || LASTFM_USERNAME == "") {
@@ -493,20 +561,28 @@ void setup() {
   else {
     saveWifi(SSID, PASSWORD);
   }
-  
-  delay(500);
-  imageBuffer = (uint16_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint16_t));
-  if (!imageBuffer)
-      Serial.println("Failed to allocate image buffer");
-  if(!loadDefaultPicture())
-      Serial.println("Failed to load default image");
+
+  isSetup = loadEspSetup();
+  isReady = loadEspReady();
 
   delay(500);
-  websocket.setMessageHandler(onWebSocketMessage, onWebSocketStatus);
   websocket.begin();
+  websocket.setMessageHandler(onWebSocketMessage, onWebSocketStatus);
+  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+
   delay(500);
-  bluetooth.begin();
-  bluetooth.setMessageHandler(onBluetoothMessage, onBluetoothStatus);
+  if (isReady == "false") {
+    bluetooth.begin();
+    bluetooth.setMessageHandler(onBluetoothMessage, onBluetoothStatus);    
+  } 
+  else if (isReady == "true") {
+    imageBuffer = (uint16_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint16_t));
+    if (!imageBuffer)
+      Serial.println("Failed to allocate image buffer");
+    if (!loadDefaultPicture())
+        Serial.println("Failed to load default image");
+  }
+
 }
 
 void loop() {
@@ -514,42 +590,77 @@ void loop() {
 
   if (now - updateOledTimer >= UPDATE_OLED_PERIOD) {
     updateOledTimer = now;
-    drawOled();
+    //drawOled("Connected to", WiFi.localIP().toString(), wsStatus);
   }
 
-  if (now - updateTftTimer >= UPDATE_TFT_PERIOD && isPlaying) {
-    updateTftTimer = now;
-    drawTftJPEG();
-    
-    imageAngle += 1.0f;
-    if (imageAngle >= 360.0f)
-      imageAngle = 0.0f;
-  }
+  if (WiFi.status() == WL_CONNECTED && isReady == "true") {
+    if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
+      updateTftTimer = now;
+      drawTftJPEG();
+      
+      if (isPlaying) {
+        imageAngle += 1.0f;
+        if (imageAngle >= 360.0f)
+          imageAngle = 0.0f;      
+      }
+    }
 
-  if (now - apiTimer >= API_PERIOD && 0)//(WiFi.status() == WL_CONNECTED)) 
-  {
-    apiTimer = now;
-    if (!getNowPlaying())
-      Serial.println("Failed to get current song");
-  }
+    if (now - apiTimer >= API_PERIOD) 
+    {
+      apiTimer = now;
+      if (!getNowPlaying())
+        Serial.println("Failed to get current song");
+    }
 
-  if (now - lastScrollTime >= SCROLL_INTERVAL) {
-    lastScrollTime = now;
-    showNowPlaying();
+    if (now - lastScrollTime >= SCROLL_INTERVAL) {
+      lastScrollTime = now;
+      showNowPlaying();
+    }
+  } 
+  else {
+    if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
+      updateTftTimer = now;
+      spin = (spin + 1) % 4;
+      reconnectSpinner();
+    }
   }
 
   if (now - reconnectTimer >= RECONNECT_PERIOD) {
     reconnectTimer = now;
-    if (!isConnect && WiFi.status() != WL_CONNECTED)
+
+    if (!isWifiConnect && WiFi.status() != WL_CONNECTED) {
       if (wifiSsid != "" && wifiPassword != "") {
         WiFi.disconnect(true);
         WiFi.begin(wifiSsid, wifiPassword);
-        isConnect = true;
+        isWifiConnect = true;
       }
+    }
+
+    if (isIpRequest && btStatus == "CONNECTED" && WiFi.status() == WL_CONNECTED) {
+      JsonDocument json; 
+      String jsonString = "";
+
+      json["Ip"] = WiFi.localIP().toString();
+      serializeJson(json, jsonString);
+      bluetooth.send(jsonString);
+      isIpRequest = false;
+    }
+
+    if (isSetup == "true" && isReady == "false" && WiFi.status() == WL_CONNECTED) {
+      btStatus = "";
+      saveSetup("true", "true");
+      ESP.restart();
+    }
   }
 
   if (now - lastNotify >= NOTIFY_PERIOD) {
     lastNotify = now;
   }
 
+  if (isReset) {
+      Serial.println("Resetting");
+      saveWifi("", "");
+      saveSetup("false", "false");
+      ESP.restart();
+  }
 }

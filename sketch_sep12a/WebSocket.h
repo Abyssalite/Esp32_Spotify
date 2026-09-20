@@ -12,6 +12,7 @@ public:
     using StatusHandler = void (*)(const String& status);
 
     WebSocket();
+    void cleanClient();
     void begin();
     void notifyClients(const JsonDocument* json);
     void setMessageHandler(MessageHandler mHandler, StatusHandler sHandler);
@@ -19,8 +20,6 @@ public:
 private:
     AsyncWebServer _server;
     AsyncWebSocket _ws;
-    String _status;
-    String _message;
     MessageHandler _messageHandler;
     StatusHandler  _statusHandler;
 

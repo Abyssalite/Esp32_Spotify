@@ -7,8 +7,7 @@ Bluetooth::Bluetooth()
       _messageHandler(nullptr),
       _statusHandler(nullptr) {}
 
-void Bluetooth::begin()
-{
+void Bluetooth::begin() {
     NimBLEDevice::init("ESP32-Control");
 
     _server = NimBLEDevice::createServer();
@@ -37,6 +36,17 @@ void Bluetooth::begin()
     advertising->start();
 
     Serial.println("BLE advertising started");
+}
+
+void Bluetooth::stop() {
+    Serial.println("Stopping BLE...");
+    _server = nullptr;
+    _rxCharacteristic = nullptr;
+    _txCharacteristic = nullptr;
+
+    NimBLEDevice::deinit(true);
+
+    Serial.printf("Free heap after BLE shutdown: %u\n", ESP.getFreeHeap());
 }
 
 void Bluetooth::setMessageHandler(MessageHandler mHandler, StatusHandler sHandler) {

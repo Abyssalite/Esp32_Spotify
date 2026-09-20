@@ -15,6 +15,7 @@ class Bluetooth {
     Bluetooth();
 
     void begin();
+    void stop();
     void send(const String& message);
     void setMessageHandler(MessageHandler mHandler, StatusHandler sHandler);
 
