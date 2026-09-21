@@ -61,15 +61,15 @@ void WebSocket::onWsEvent(
 ){
     if (type == WS_EVT_CONNECT) {
         if (_messageHandler != nullptr)
-            _messageHandler("WS connected");
+            _statusHandler(true);
     }
     else if (type == WS_EVT_DISCONNECT) {
         if (_messageHandler != nullptr)
-            _messageHandler("WS disconned");
+            _statusHandler(false);
         _ws.cleanupClients();
     }
     else if (type == WS_EVT_DATA) {
         if (_statusHandler != nullptr)
-            _statusHandler(String((char*)data).substring(0, len));
+            _messageHandler(String((char*)data).substring(0, len));
     }
 }

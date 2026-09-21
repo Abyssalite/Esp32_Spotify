@@ -62,7 +62,7 @@ public partial class AddDeviceView : UserControl
 
         if (!_layoutInitialized)
         {
-            DeviceAddStack.IsVisible = true;
+            DeviceAddBorder.IsVisible = true;
             _layoutInitialized = true;
         }
     }

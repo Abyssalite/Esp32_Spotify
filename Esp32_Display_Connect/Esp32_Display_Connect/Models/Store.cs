@@ -24,13 +24,13 @@ public class Store
         _events.Publish(new SelectedDeviceChangedEvent(SelectedDevice));
     }
 
-    public void StoreAddBlurtoothDevice(BluetoothDevice? device)
+    /*public void StoreAddBlurtoothDevice(BluetoothDevice? device)
     {
         if (device == null || SelectedDevice == null) return;
 
         SelectedDevice.bluetooth = device;
         _events.Publish(new BluetoothDeviceAddEvent());
-    }
+    }*/
 
     public async Task<bool> StoreAddDevice(Device device)
     {

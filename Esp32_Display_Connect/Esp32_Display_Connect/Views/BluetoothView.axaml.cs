@@ -68,7 +68,7 @@ public partial class BluetoothView : UserControl
 
         if (!_layoutInitialized)
         {
-            DeviceSelectStack.IsVisible = true;
+            DeviceSelectBorder.IsVisible = true;
             _layoutInitialized = true;
         }
     }

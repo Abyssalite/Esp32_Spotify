@@ -6,11 +6,10 @@
              x:Class="Esp32_Display_Connect.Views.SelectView"
              x:DataType="vm:SelectViewModel">
 
-	<Border x:Name="DeviceSelectBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333">
+	<Border x:Name="DeviceSelectBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333" IsVisible="False">
 		<Grid x:Name="DeviceSelectStack" 
 			HorizontalAlignment="Center"
-			VerticalAlignment="Center" 
-            IsVisible="False">	
+			VerticalAlignment="Center" >	
                 <ListBox x:Name="DeviceSelectListBox"
 					ItemsSource="{Binding DevicesList}"
 					HorizontalAlignment="Stretch" 
@@ -56,7 +55,7 @@
                     </ListBox.ItemTemplate>
                 </ListBox>   
 
-			<Button x:Name="BluetoothCommandButton"
+			 <!--<Button x:Name="BluetoothCommandButton"
 				Content="BLE Device Add" 
 				HorizontalAlignment="Center" 
 				VerticalAlignment="Center" 
@@ -65,7 +64,7 @@
 				Height="80"
 				Width="160"
 				CornerRadius="20"
-				Command="{Binding BluetoothCommand}" />
+				Command="{Binding BluetoothCommand}" />-->
 
 			<Button x:Name="AddDeviceCommandButton"
 				Content="Add Manually" 

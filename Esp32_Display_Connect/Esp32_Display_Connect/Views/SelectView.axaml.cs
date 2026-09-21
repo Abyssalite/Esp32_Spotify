@@ -45,11 +45,11 @@ public partial class SelectView : UserControl
             DeviceSelectListBox.Classes.Remove("horizontal");
             DeviceSelectListBox.Classes.Add("vertical");
 
-            DeviceSelectStack.RowDefinitions = new RowDefinitions("*,Auto,Auto");
+            DeviceSelectStack.RowDefinitions = new RowDefinitions("*,Auto");
             DeviceSelectStack.ColumnDefinitions = new ColumnDefinitions("*");
-            Grid.SetRow(BluetoothCommandButton, 1);
-            Grid.SetColumn(BluetoothCommandButton, 0);
-            Grid.SetRow(AddDeviceCommandButton, 2);
+            //Grid.SetRow(BluetoothCommandButton, 1);
+            //Grid.SetColumn(BluetoothCommandButton, 0);
+            Grid.SetRow(AddDeviceCommandButton, 1);
             Grid.SetColumn(AddDeviceCommandButton, 0);
         }
 
@@ -63,16 +63,16 @@ public partial class SelectView : UserControl
             DeviceSelectListBox.Classes.Add("horizontal");
 
             DeviceSelectStack.RowDefinitions = new RowDefinitions("*");
-            DeviceSelectStack.ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto");
-            Grid.SetRow(BluetoothCommandButton, 0);
-            Grid.SetColumn(BluetoothCommandButton, 1);
+            DeviceSelectStack.ColumnDefinitions = new ColumnDefinitions("*,Auto");
+            //Grid.SetRow(BluetoothCommandButton, 0);
+            //Grid.SetColumn(BluetoothCommandButton, 1);
             Grid.SetRow(AddDeviceCommandButton, 0);
-            Grid.SetColumn(AddDeviceCommandButton, 2);
+            Grid.SetColumn(AddDeviceCommandButton, 1);
         }
 
         if (!_layoutInitialized)
         {
-            DeviceSelectStack.IsVisible = true;
+            DeviceSelectBorder.IsVisible = true;
             _layoutInitialized = true;
         }
     }

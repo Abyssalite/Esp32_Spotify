@@ -26,7 +26,7 @@ public class DeviceConnectionService : IDeviceConnectionService
         _wsClient.MessageReceived.Subscribe(msg =>
         {
             try
-            {
+            { 
                 var status = JsonSerializer.Deserialize<DeviceStatus>(msg.Text ?? "");
 
                 if (status != null)

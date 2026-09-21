@@ -6,7 +6,7 @@
              x:Class="Esp32_Display_Connect.Views.BluetoothView"
              x:DataType="vm:BluetoothViewModel">
 
-	<Border x:Name="DeviceSelectBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333">
+	<Border x:Name="DeviceSelectBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333" IsVisible="False">
         <Grid ColumnDefinitions="Auto,*">		
             <Button
                 Grid.Column="0"
@@ -31,8 +31,7 @@
             <Grid x:Name="DeviceSelectStack" 
                 Grid.Column="1" 
 				HorizontalAlignment="Stretch" 
-                VerticalAlignment="Center" 
-                IsVisible="False">	
+                VerticalAlignment="Center">	
                     <ListBox x:Name="DeviceSelectListBox"
                         ItemsSource="{Binding BtDevicesList}"
                         HorizontalAlignment="Stretch" 

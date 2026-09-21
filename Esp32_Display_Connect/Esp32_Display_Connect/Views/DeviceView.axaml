@@ -57,86 +57,23 @@
             Margin="100 0" 
             Background="#3333">
             
-            <Grid Margin="25"
-                RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
-                RowSpacing="8">
+            <StackPanel Margin="25" Spacing="8">
 
-                <TextBlock Grid.Row="0"
-                    Text="Set Temperature"
-                    FontWeight="SemiBold"
-                    Margin="0 8 0 0" />
-                <Grid Grid.Row="1"
-                    ColumnDefinitions="50,*"
-                    ColumnSpacing="10">
-                    <TextBlock Grid.Column="0"
-                        FontSize="18"
-                        VerticalAlignment="Center" />
+					<TextBlock Text="Song Name" FontWeight="SemiBold"/>
+					<TextBlock Text="{Binding DeviceInfo.SongName}" FontSize="18"/>
 
-                    <Slider Grid.Column="1"
-                        Minimum="-10"
-                        Maximum="30"
-                        TickFrequency="0.5"
-                        IsSnapToTickEnabled="True"
-                        TickPlacement="BottomRight"/>
-                </Grid>
+					<TextBlock Text="Artist Name" FontWeight="SemiBold" Margin="0 8 0 0"/>
+					<TextBlock Text="{Binding DeviceInfo.ArtistName}" FontSize="18"/>
 
-                <TextBlock Grid.Row="2"
-                    Text="Fan 1 Speed"
-                    FontWeight="SemiBold"
-                    Margin="0 8 0 0" />
-                <Grid Grid.Row="3"
-                    ColumnDefinitions="50,*"
-                    ColumnSpacing="10">
-                    <TextBlock Grid.Column="0"
-                        FontSize="18"
-                        VerticalAlignment="Center" />
+					<TextBlock Text="Image Angle" FontWeight="SemiBold" Margin="0 8 0 0"/>
+					<TextBlock Text="{Binding DeviceInfo.ImgAngle, StringFormat='{}{0:0.0}'}" FontSize="18"/>
 
-                    <Slider Grid.Column="1"
-                        Minimum="1"
-                        Maximum="100"
-                        TickFrequency="1"
-                        IsSnapToTickEnabled="True"
-                        TickPlacement="BottomRight"/>
-                </Grid>
+					<TextBlock Text="Is Playing" FontWeight="SemiBold" Margin="0 8 0 0"/>
+					<TextBlock Text="{Binding DeviceInfo.IsPlaying}" FontSize="18"/>
 
-                <TextBlock Grid.Row="4"
-                    Text="Fan 2 Speed"
-                    FontWeight="SemiBold"
-                    Margin="0 8 0 0" />
-                <Grid Grid.Row="5"
-                    ColumnDefinitions="50,*"
-                    ColumnSpacing="10">
-                    <TextBlock Grid.Column="0"
-                        FontSize="18"
-                        VerticalAlignment="Center" />
-
-                    <Slider Grid.Column="1"
-                        Minimum="1"
-                        Maximum="100"
-                        TickFrequency="1"
-                        IsSnapToTickEnabled="True"
-                        TickPlacement="BottomRight"/>
-                </Grid>
-
-                <TextBlock Grid.Row="6"
-                    Text="TEC Power"
-                    FontWeight="SemiBold"
-                    Margin="0 8 0 0" />
-                <Grid Grid.Row="7"
-                    ColumnDefinitions="50,*"
-                    ColumnSpacing="10">
-                    <TextBlock Grid.Column="0"
-                        FontSize="18"
-                        VerticalAlignment="Center" />
-
-                    <Slider Grid.Column="1"
-                        Minimum="1"
-                        Maximum="100"
-                        TickFrequency="1"
-                        IsSnapToTickEnabled="True"
-                        TickPlacement="BottomRight"/>
-                </Grid>
-            </Grid>
+					<TextBlock Text="Is Spin Mode" FontWeight="SemiBold" Margin="0 8 0 0"/>
+					<TextBlock Text="{Binding DeviceInfo.IsSpinMode}" FontSize="18"/>
+				</StackPanel>
         </Border>
     </Grid>
 

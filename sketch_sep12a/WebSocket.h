@@ -9,7 +9,7 @@ class WebSocket
 {
 public:
     using MessageHandler = void (*)(const String& message);
-    using StatusHandler = void (*)(const String& status);
+    using StatusHandler = void (*)(const bool& status);
 
     WebSocket();
     void cleanClient();

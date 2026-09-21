@@ -6,7 +6,7 @@
              x:Class="Esp32_Display_Connect.Views.AddDeviceView"
              x:DataType="vm:AddDeviceViewModel">
 
-	<Border x:Name="DeviceAddBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333">
+	<Border x:Name="DeviceAddBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333" IsVisible="False">
         <Grid ColumnDefinitions="Auto,*">		
             <Button
                 Grid.Column="0"
@@ -31,8 +31,7 @@
             <Grid x:Name="DeviceAddStack" 
                 Grid.Column="1" 
 				HorizontalAlignment="Stretch" 
-                VerticalAlignment="Center"
-                IsVisible="False">	
+                VerticalAlignment="Center">	
 
                 <StackPanel x:Name="DeviceAddTextStack" HorizontalAlignment="Stretch">
                     <TextBox PlaceholderText="Device name" Text="{Binding Name}" Margin="8" />

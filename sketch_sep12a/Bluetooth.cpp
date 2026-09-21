@@ -87,7 +87,7 @@ void Bluetooth::ServerCallbacks::onConnect(
 ){
     if (_bluetooth->_statusHandler != nullptr)
     {
-       _bluetooth->_statusHandler("CONNECTED:1");
+       _bluetooth->_statusHandler(1);
     }
 }
 
@@ -98,7 +98,7 @@ void Bluetooth::ServerCallbacks::onDisconnect(
 ){
     if (_bluetooth->_statusHandler != nullptr)
     {
-        _bluetooth->_statusHandler("DISCONNED:" + String(reason));
+        _bluetooth->_statusHandler(reason);
     }
     NimBLEDevice::startAdvertising();
 }

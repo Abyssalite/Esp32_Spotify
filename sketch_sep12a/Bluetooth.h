@@ -10,7 +10,7 @@
 class Bluetooth {
   public:
     using MessageHandler = void (*)(const String& message);
-    using StatusHandler = void (*)(const String& status);
+    using StatusHandler = void (*)(const int& status);
 
     Bluetooth();
 

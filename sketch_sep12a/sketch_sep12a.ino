@@ -4,6 +4,7 @@
 #include <SPI.h>
 #include <string>
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
@@ -22,10 +23,10 @@
 #define DISPLAY_WIDTH 240
 #define SCROLL_INTERVAL 500
 #define SCROLL_STEP 8
-#define RESET_BUTTON 9
-#define RESET_DELAY 5000 // 5s debounce
+#define MODE_BUTTON 9
+#define MODE_DELAY 80
 
-unsigned long resetPress = 0;
+unsigned long modePress = 0;
 unsigned long updateOledTimer = 0;
 unsigned long updateTftTimer = 0;
 unsigned long reconnectTimer = 0;
@@ -33,17 +34,18 @@ unsigned long apiTimer = 0;
 unsigned long lastNotify = 0;
 unsigned long lastScrollTime = 0;
 
-uint8_t spin = 0;
+uint8_t spinner = 0;
 uint8_t *imageBuffer = nullptr;
 float imageAngle = 0.0f;
 int scrollOffset = 0;
 bool scrollDirection = true;   // true = moving left, false = moving right
 volatile bool isReset = false;
 volatile bool canSetInterrupt = true;
+volatile bool isSpinMode = false;
 
 String wifiSsid     = "";
 String wifiPassword = "";
-String wsStatus   = "";
+bool wsStatus   = false;
 String message = "";
 
 String apiKey   = "";
@@ -54,33 +56,35 @@ String songName   = "";
 String artistName = ""; 
 String currentSongName = "";
 bool isPlaying = false;
-bool isWifiConnect = false;
+//bool isWifiConnect = false;
 
-//JsonDocument telemetryJson;
 Preferences preferences;
 
 //U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 TFT_eSPI tft = TFT_eSPI();
 JPEGDEC jpeg;
 WebSocket websocket;
+WiFiMulti wifiMulti;
 
-bool debounceReset(uint8_t btn, uint8_t isHigh) {
+bool debounceMode(uint8_t btn, uint8_t isHigh) {
   if (isHigh) return false;
   if (canSetInterrupt) {
-    resetPress = millis();
+    modePress = millis();
     canSetInterrupt = false;
   }
-  if (millis() - resetPress > RESET_DELAY) {
+  if (millis() - modePress > MODE_DELAY) {
     canSetInterrupt = true;
-    resetPress = 0;
+    modePress = 0;
     return true;
   }
   return false;
 }
 
-void IRAM_ATTR resetButtonISR() {
-  if (debounceReset(RESET_BUTTON, digitalRead(RESET_BUTTON))) {
-    isReset = true;
+void IRAM_ATTR modeButtonISR() {
+  if (debounceMode(MODE_BUTTON, digitalRead(MODE_BUTTON))) {
+    isSpinMode = !isSpinMode;
+    currentSongName = "";
+    imageAngle = 0.0f;
   }
 }
 
@@ -145,11 +149,18 @@ String loadWifiPass() {
   } while (u8g2.nextPage()); 
 }*/
 
-void reconnectSpinner() {
-  const char spinner[] = { '|', '/', '-', '\\' }; 
+void wsDataSend() {
+  JsonDocument datasJson;
 
-  drawScrollingText("Connecting", 120, TFT_WHITE, 2);
-  drawScrollingText(String(spinner[spin]), 160, TFT_WHITE, 4);
+  datasJson["SongName"] = songName;
+  datasJson["ArtistName"] = artistName;
+  datasJson["ImgUrl"] = imageUrl;
+  datasJson["ImgAngle"] = imageAngle;
+  datasJson["IsPlaying"] = isPlaying;
+  datasJson["IsSpinMode"] = isSpinMode;
+
+
+  websocket.notifyClients(&datasJson);
 }
 
 uint8_t rgb16to8(uint16_t c) {
@@ -207,6 +218,11 @@ int savePixel(JPEGDRAW *pDraw) {
       dst[i] = rgb16to8(src[i]);
     }
   }
+  return 1;
+}
+
+int JPEGDraw(JPEGDRAW *pDraw) {
+  tft.pushImage(pDraw->x, pDraw->y, pDraw->iWidth, pDraw->iHeight, pDraw->pPixels);
   return 1;
 }
 
@@ -269,8 +285,9 @@ bool downloadAndSaveImage(int x, int y) {
   
   HTTPClient http;
   http.begin(imageUrl);
-  http.setTimeout(15000);
-
+  http.setReuse(false);
+  http.setTimeout(10000);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
   int httpCode = http.GET();
 
   if (httpCode != 200) {
@@ -290,6 +307,7 @@ bool downloadAndSaveImage(int x, int y) {
     http.end();
     return false;
   }
+  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
 
   WiFiClient *stream = http.getStreamPtr();
   int bytesRead = 0;
@@ -314,9 +332,9 @@ bool downloadAndSaveImage(int x, int y) {
     return false;
   }
   // ===== Decode with JPEGDEC =====
-  if (jpeg.openRAM(buffer, totalLen, savePixel)) {
+  if (jpeg.openRAM(buffer, totalLen, isSpinMode ? savePixel : JPEGDraw)) {
     //Serial.printf("JPEG size: %d x %d\n", jpeg.getWidth(), jpeg.getHeight());
-    jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
+    jpeg.setPixelType(isSpinMode ? RGB565_LITTLE_ENDIAN : RGB565_BIG_ENDIAN);
 
     if(jpeg.getWidth() != IMAGE_SIZE || jpeg.getHeight() != IMAGE_SIZE) {
       free(buffer);
@@ -342,8 +360,8 @@ bool downloadAndSaveImage(int x, int y) {
 
 bool loadDefaultPicture() {
    // ===== Decode with JPEGDEC =====
-  if (jpeg.openFLASH((uint8_t *)cdImage, cdImageSize, savePixel)) {
-    jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
+  if (jpeg.openFLASH((uint8_t *)cdImage, cdImageSize, isSpinMode ? savePixel : JPEGDraw)) {
+    jpeg.setPixelType(isSpinMode ? RGB565_LITTLE_ENDIAN : RGB565_BIG_ENDIAN);
 
     if (!jpeg.decode(0, 0, 0)) {
       jpeg.close();
@@ -357,7 +375,7 @@ bool loadDefaultPicture() {
   return true;
 }
 
-void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize) {
+void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize, bool isCustom = false, int x = 0) {
   tft.setTextSize(textSize);
   tft.setTextDatum(TL_DATUM);    // Top-Left
 
@@ -365,14 +383,20 @@ void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize) {
   int areaHeight = (textSize == 2) ? 20 : 12;
 
   // Clear text area
-  tft.fillRect(0, y - 4, 240, areaHeight + 4, TFT_BLACK);
+  tft.fillRect(0, y - 2, 240, areaHeight + 2, TFT_BLACK);
 
-  if (textWidth <= DISPLAY_WIDTH) {
+  if (textWidth <= DISPLAY_WIDTH && !isCustom) {
     tft.setTextDatum(MC_DATUM); // Middle-Center
     tft.setTextColor(color, TFT_BLACK);
     tft.drawString(text, 120, y);
     return;
   }
+
+  if (isCustom) {
+    tft.setTextColor(color, TFT_BLACK);
+    tft.drawString(text, x, y);
+    return;
+  } 
 
   // Scroll text
   if (scrollDirection) {
@@ -387,11 +411,18 @@ void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize) {
     }
   }
 
-  tft.setViewport(0, y - 4, 240, areaHeight);
+  tft.setViewport(0, y - 2, 240, areaHeight);
   tft.setTextColor(color, TFT_BLACK);
-  tft.setCursor(scrollOffset, 4);   // relative to viewport
+  tft.setCursor(scrollOffset, 2);   // relative to viewport
   tft.print(text);
   tft.resetViewport();
+}
+
+void reconnectSpinner() {
+  const char icon[] = { '|', '/', '-', '\\' }; 
+
+  drawScrollingText("Connecting", 120, TFT_WHITE, 2);
+  drawScrollingText(String(icon[spinner]), 160, TFT_WHITE, 4);
 }
 
 void showNowPlaying() {
@@ -409,7 +440,7 @@ void showNowPlaying() {
     scrollDirection = true;  
   }
 
-  tft.fillRect(0, 241, 240, 80, TFT_BLACK);
+  tft.fillRect(0, 241, 240, 50, TFT_BLACK);
   // Song name
   drawScrollingText(songName, 265, TFT_WHITE, 2);
   // Artist name
@@ -429,8 +460,9 @@ String getArtwork(String artist, String song) {
   String url = "https://itunes.apple.com/search?term=" + term + "&entity=song&limit=1";
 
   http.begin(url);
-  http.setTimeout(15000);
-
+  http.setReuse(false);
+  http.setTimeout(10000);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
   int code = http.GET();
 
   if (code != 200) {
@@ -468,8 +500,9 @@ bool getNowPlaying() {
   url += "&limit=1&format=json";
 
   http.begin(url);
-  http.setTimeout(15000);
-
+  http.setReuse(false);
+  http.setTimeout(10000);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
   int httpCode = http.GET();
 
   if (httpCode != 200) {
@@ -499,7 +532,7 @@ bool getNowPlaying() {
 void onWebSocketMessage(const String& message) {
     Serial.printf("WS RX: %s\n", message);
 }
-void onWebSocketStatus(const String& status) {
+void onWebSocketStatus(const bool& status) {
     wsStatus = status;
 }
 
@@ -514,39 +547,36 @@ void setup() {
   //u8g2.begin();
   //u8g2.enableUTF8Print();
 
-  pinMode(RESET_BUTTON, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(RESET_BUTTON), resetButtonISR, FALLING);
+  pinMode(MODE_BUTTON, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(MODE_BUTTON), modeButtonISR, FALLING);
 
   // #define in env.h
   if (LASTFM_API_KEY == "" || LASTFM_USERNAME == "") {
     apiKey = loadApiKey();
     userName = loadUserName();
   }
-  else {
+  else
     saveUser(LASTFM_USERNAME, LASTFM_API_KEY);
-  }
 
-  if (SSID == "" || PASSWORD == "") {
-    wifiSsid = loadSsid();
-    wifiPassword = loadWifiPass();
-  }
-  else {
-    saveWifi(SSID, PASSWORD);
+  wifiMulti.addAP(SSID, PASSWORD);
+  wifiSsid = loadSsid();
+  wifiPassword = loadWifiPass();
+  if (wifiSsid != "" && wifiPassword != "") {
+    //wifiMulti.addAP(wifiSsid, wifiPassword);
   }
 
   delay(500);
   websocket.begin();
   websocket.setMessageHandler(onWebSocketMessage, onWebSocketStatus);
-
   Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
 
   delay(500);
   imageBuffer = (uint8_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint8_t));
   if (!imageBuffer)
     Serial.println("Failed to allocate image buffer");
-  if (!loadDefaultPicture())
-    Serial.println("Failed to load default image");
-
+  if (imageBuffer != nullptr) {
+    memset(imageBuffer, 0, IMAGE_SIZE * IMAGE_SIZE);
+  }
   Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
 }
 
@@ -559,10 +589,10 @@ void loop() {
   }*/
 
   if (WiFi.status() == WL_CONNECTED) {
-    if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
+    if ((now - updateTftTimer >= UPDATE_TFT_PERIOD) && isSpinMode) {
       updateTftTimer = now;
+
       drawTftJPEG();
-      
       if (isPlaying) {
         imageAngle += 1.0f;
         if (imageAngle >= 360.0f)
@@ -585,24 +615,21 @@ void loop() {
   else {
     if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
       updateTftTimer = now;
-      spin = (spin + 1) % 4;
+      spinner = (spinner + 1) % 4;
       reconnectSpinner();
     }
   }
 
   if (now - reconnectTimer >= RECONNECT_PERIOD) {
     reconnectTimer = now;
-
-    if (!isWifiConnect && WiFi.status() != WL_CONNECTED) {
-      if (wifiSsid != "" && wifiPassword != "") {
-        WiFi.disconnect(true);
-        WiFi.begin(wifiSsid, wifiPassword);
-        isWifiConnect = true;
-      }
-    }
+    wifiMulti.run();
+    drawScrollingText(WiFi.localIP().toString()+':'+String(wsStatus),
+                      310, TFT_NAVY, 1, true, -46); 
   }
 
   if (now - lastNotify >= NOTIFY_PERIOD) {
     lastNotify = now;
+    wsDataSend();
+    websocket.cleanClient();
   }
 }

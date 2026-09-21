@@ -38,7 +38,7 @@ public sealed class BluetoothService : IBluetoothService
                     var bluetoothDevice = await CreateBluetoothDeviceAsync(device);
                     result.Add(bluetoothDevice);
 
-                    _events.Publish(new BluetoothDiscoveredEvent(bluetoothDevice));
+                    //_events.Publish(new BluetoothDiscoveredEvent(bluetoothDevice));
 
                 }
                 catch (Exception ex)
@@ -168,13 +168,13 @@ public sealed class BluetoothService : IBluetoothService
         {
             var serviceProperties = await service.GetAllAsync();
 
-            if (!string.Equals(
+            /*if (!string.Equals(
                     serviceProperties.UUID,
                     Env.ServiceUuid,
                     StringComparison.OrdinalIgnoreCase))
             {
                 continue;
-            }
+            }*/
 
             _service = service;
 
@@ -297,7 +297,7 @@ public sealed class BluetoothService : IBluetoothService
                         continue;
 
                     var message = Encoding.UTF8.GetString(bytes);
-                    _events.Publish(new BluetoothReceiveEvent(message));
+                    //_events.Publish(new BluetoothReceiveEvent(message));
                 }
             });
 

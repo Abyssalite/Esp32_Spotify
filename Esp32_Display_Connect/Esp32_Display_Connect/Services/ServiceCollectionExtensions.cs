@@ -8,7 +8,7 @@ public static class ServiceCollectionExtensions
         collection.AddLogging();
         collection.AddSingleton<Store>();
         collection.AddSingleton<IDeviceConnectionService, DeviceConnectionService>();
-        collection.AddSingleton<IBluetoothService, BluetoothService>();
+        //collection.AddSingleton<IBluetoothService, BluetoothService>();
         
         collection.AddTransient<MainViewModel>();
         collection.AddTransient<SelectViewModel>();

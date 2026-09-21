@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Custom_EventHub;
@@ -36,10 +37,13 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
         _subscriptions.Add(_events.Subscribe<StatusReceivedEvent>(async evt =>
         {
             DeviceInfo = evt.deviceStatus;
+            OnPropertyChanged(nameof(DeviceInfo));
+
         }));
         _subscriptions.Add(_events.Subscribe<ConnectionStatusChangedEvent>(async evt =>
         {
             Status = evt.connectionStatus;
+            OnPropertyChanged(nameof(Status));
         }));
 
         _ = ConnectAsync();

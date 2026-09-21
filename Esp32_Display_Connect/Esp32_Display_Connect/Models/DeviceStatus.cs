@@ -1,9 +1,9 @@
 public sealed class DeviceStatus
 {
-    public string? songName { get; set; }
-    public string? artistName { get; set; }
-    public string? imgUrl { get; set; }
-    public string? isPlaying { get; set; }
-    public string? imgAngle { get; set; }
-    public string? dispMode { get; set; }
+    public string? SongName { get; set; }
+    public string? ArtistName { get; set; }
+    public string? ImgUrl { get; set; }
+    public float? ImgAngle { get; set; }
+    public bool? IsPlaying { get; set; }
+    public bool? IsSpinMode { get; set; }
 }
