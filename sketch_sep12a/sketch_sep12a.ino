@@ -11,7 +11,6 @@
 
 #include "env.h"
 #include "cd_image.h"
-#include "Bluetooth.h"
 #include "WebSocket.h"
 
 #define UPDATE_OLED_PERIOD 2000
@@ -19,7 +18,7 @@
 #define RECONNECT_PERIOD 1000
 #define NOTIFY_PERIOD 1000
 #define API_PERIOD 10000
-#define IMAGE_SIZE 160
+#define IMAGE_SIZE 240
 #define DISPLAY_WIDTH 240
 #define SCROLL_INTERVAL 500
 #define SCROLL_STEP 8
@@ -35,7 +34,7 @@ unsigned long lastNotify = 0;
 unsigned long lastScrollTime = 0;
 
 uint8_t spin = 0;
-uint16_t *imageBuffer = nullptr;
+uint8_t *imageBuffer = nullptr;
 float imageAngle = 0.0f;
 int scrollOffset = 0;
 bool scrollDirection = true;   // true = moving left, false = moving right
@@ -46,7 +45,6 @@ String wifiSsid     = "";
 String wifiPassword = "";
 String wsStatus   = "";
 String message = "";
-String btStatus   = "";
 
 String apiKey   = "";
 String userName = "";
@@ -57,9 +55,6 @@ String artistName = "";
 String currentSongName = "";
 bool isPlaying = false;
 bool isWifiConnect = false;
-bool isIpRequest = false;
-String isSetup = "false";
-String isReady = "false";
 
 //JsonDocument telemetryJson;
 Preferences preferences;
@@ -67,7 +62,6 @@ Preferences preferences;
 //U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 TFT_eSPI tft = TFT_eSPI();
 JPEGDEC jpeg;
-Bluetooth bluetooth;
 WebSocket websocket;
 
 bool debounceReset(uint8_t btn, uint8_t isHigh) {
@@ -108,15 +102,6 @@ void saveWifi(String ssid, String pass) {
   preferences.end();
 }
 
-void saveSetup(String setup, String ready) {
-  isSetup = setup;
-  isReady = ready;
-  preferences.begin("esp", false); //read-write
-  preferences.putString("setup", setup);
-  preferences.putString("ready", ready);
-  preferences.end();
-}
-
 String loadApiKey() {
   preferences.begin("last.fm", true); //read-only
   String key = preferences.getString("key", "");
@@ -145,20 +130,6 @@ String loadWifiPass() {
   return pass;
 }
 
-String loadEspSetup() {
-  preferences.begin("esp", true); //read-only
-  String setup = preferences.getString("setup", "false");
-  preferences.end();
-  return setup;
-}
-
-String loadEspReady() {
-  preferences.begin("esp", true); //read-only
-  String ready = preferences.getString("ready", "false");
-  preferences.end();
-  return ready;
-}
-
 /*void drawOled(String a, String b, String c) {
   u8g2.firstPage();
   do {
@@ -181,12 +152,35 @@ void reconnectSpinner() {
   drawScrollingText(String(spinner[spin]), 160, TFT_WHITE, 4);
 }
 
+uint8_t rgb16to8(uint16_t c) {
+  uint8_t r = (c >> 11) & 0x1F;  // 5-bit red
+  uint8_t g = (c >> 5)  & 0x3F;  // 6-bit green
+  uint8_t b =  c        & 0x1F;  // 5-bit blue
+
+  // Scale down to RGB233
+  r = r >> 3;   // 5 → 2
+  g = g >> 3;   // 6 → 3
+  b = b >> 2;   // 5 → 3
+
+  return (r << 6) | (g << 3) | b;   // RR GGG BBB
+}
+
+uint16_t rgb8to16(uint8_t c) {
+  uint8_t r = (c >> 6) & 0x03;   // 2-bit red
+  uint8_t g = (c >> 3) & 0x07;   // 3-bit green
+  uint8_t b =  c       & 0x07;   // 3-bit blue
+  
+  b = (b << 3) | (b);        // 3 → 6 bits
+  r = (r << 2) | (r);        // 2 → 4 bits
+  g = (g << 3) | (g);        // 3 → 6 bits
+
+  return (b << 10) | (r << 6) | g;
+}
+
 int savePixel(JPEGDRAW *pDraw) {
   for (int y = 0; y < pDraw->iHeight; y++) {
     int destY = pDraw->y + y;
-
-    if (destY < 0 || destY >= IMAGE_SIZE)
-      continue;
+    if (destY < 0 || destY >= IMAGE_SIZE) continue;
 
     int srcX = 0;
     int destX = pDraw->x;
@@ -194,9 +188,9 @@ int savePixel(JPEGDRAW *pDraw) {
 
     // Clip left
     if (destX < 0) {
-        srcX = -destX;
-        width -= srcX;
-        destX = 0;
+      srcX = -destX;
+      width -= srcX;
+      destX = 0;
     }
 
     // Clip right
@@ -204,64 +198,66 @@ int savePixel(JPEGDRAW *pDraw) {
       width = IMAGE_SIZE - destX;
     }
 
-    if (width <= 0)
-        continue;
+    if (width <= 0) continue;
 
-    memcpy(
-      imageBuffer + destY * IMAGE_SIZE + destX,
-      pDraw->pPixels + y * pDraw->iWidth + srcX,
-      width * sizeof(uint16_t)
-    );
+    uint16_t *src = pDraw->pPixels + y * pDraw->iWidth + srcX;
+    uint8_t  *dst = imageBuffer + destY * IMAGE_SIZE + destX;
+
+    for (int i = 0; i < width; i++) {
+      dst[i] = rgb16to8(src[i]);
+    }
   }
   return 1;
 }
 
 void drawTftJPEG() {
-  const float srcCenter = 79.5f;
-  const float dstCenter = 119.5f;
-
+  const float srcCenter = (IMAGE_SIZE - 1) / 2.0f;
+  const float dstCenter = (DISPLAY_WIDTH - 1) / 2.0f;
   const int radius = DISPLAY_WIDTH / 2;
   const int radius2 = radius * radius;
-
-  const float scale = 1.5f;
+  const float scale = (float)DISPLAY_WIDTH / IMAGE_SIZE;
 
   float rad = imageAngle * PI / 180.0f;
   float cosA = cos(rad);
   float sinA = sin(rad);
 
+  // Line buffer for one row
+  uint16_t lineBuf[DISPLAY_WIDTH];
+
   for (int y = 0; y < DISPLAY_WIDTH; y++) {
+    // Pre-calculate vertical distance for circle test
+    int dyScreen = y - radius;
+    int dy2 = dyScreen * dyScreen;
+
     for (int x = 0; x < DISPLAY_WIDTH; x++) {
+      int dxScreen = x - radius;
 
-      // Circular mask
-      int dxScreen = x - 120;
-      int dyScreen = y - 120;
-
-      if (dxScreen * dxScreen + dyScreen * dyScreen > radius2)
+      // Outside circle → transparent/black
+      if (dxScreen * dxScreen + dy2 > radius2) {
+        lineBuf[x] = TFT_BLACK;
         continue;
+      }
 
-      // Position relative to destination center
+      // Map to source image with rotation
       float dx = (x - dstCenter) / scale;
       float dy = (y - dstCenter) / scale;
 
-      // Reverse rotation to find source pixel
-      float srcX = dx * cosA + dy * sinA;
-      float srcY = -dx * sinA + dy * cosA;
+      float srcX =  dx * cosA + dy * sinA + srcCenter;
+      float srcY = -dx * sinA + dy * cosA + srcCenter;
 
-      srcX += srcCenter;
-      srcY += srcCenter;
+      int ix = (int)round(srcX);
+      int iy = (int)round(srcY);
 
-      int ix = round(srcX);
-      int iy = round(srcY);
-
-      // Outside source image
-      if (ix < 0 || ix >= IMAGE_SIZE ||
-          iy < 0 || iy >= IMAGE_SIZE)
-        continue;
-
-      uint16_t pixel = imageBuffer[iy * IMAGE_SIZE + ix];
-
-      tft.drawPixel(x, y, pixel);
+      if (ix < 0 || ix >= IMAGE_SIZE || iy < 0 || iy >= IMAGE_SIZE) {
+        lineBuf[x] = TFT_BLACK;
+      } else {
+        uint8_t pixel8 = imageBuffer[iy * IMAGE_SIZE + ix];
+        lineBuf[x] = rgb8to16(pixel8);
+      }
     }
+
+    // Push the whole line at once (much faster)
+    tft.pushImage(0, y, DISPLAY_WIDTH, 1, lineBuf);
   }
 }
 
@@ -358,7 +354,6 @@ bool loadDefaultPicture() {
   } else {
     return false;
   }
-
   return true;
 }
 
@@ -416,9 +411,9 @@ void showNowPlaying() {
 
   tft.fillRect(0, 241, 240, 80, TFT_BLACK);
   // Song name
-  drawScrollingText(songName, 260, TFT_WHITE, 2);
+  drawScrollingText(songName, 265, TFT_WHITE, 2);
   // Artist name
-  drawScrollingText(artistName, 295, TFT_CYAN, 1);
+  drawScrollingText(artistName, 290, TFT_CYAN, 1);
 }
 
 String getArtwork(String artist, String song) {
@@ -454,7 +449,7 @@ String getArtwork(String artist, String song) {
   if (imgJson["resultCount"] == 0) return "";
 
   String art = imgJson["results"][0]["artworkUrl100"].as<String>(); 
-  art.replace("100x100bb", "160x160bb");
+  art.replace("100x100bb", "240x240bb");
   art.replace("http://", "https://");
 
   return art;
@@ -508,29 +503,6 @@ void onWebSocketStatus(const String& status) {
     wsStatus = status;
 }
 
-void onBluetoothMessage(const String& message) {
-    JsonDocument btJson;
-    deserializeJson(btJson, message);
-
-    if (btJson["Ssid"].as<String>() != "null") {
-      WiFi.disconnect(true);
-      saveWifi(btJson["Ssid"].as<String>(), btJson["Password"].as<String>());
-      isWifiConnect = false;
-      return;
-    }
-    if (btJson["Ip"].as<String>() == "REQUEST") {
-      isIpRequest = true;
-      return;
-    }
-    if (btJson["Setup"].as<String>() == "TRUE") {
-      saveSetup("true", "false");
-      return;
-    }
-}
-void onBluetoothStatus(const String& status) {
-    btStatus = status.substring(0, 9);
-}
-
 void setup() {
   Serial.begin(115200);
 
@@ -562,38 +534,31 @@ void setup() {
     saveWifi(SSID, PASSWORD);
   }
 
-  isSetup = loadEspSetup();
-  isReady = loadEspReady();
-
   delay(500);
   websocket.begin();
   websocket.setMessageHandler(onWebSocketMessage, onWebSocketStatus);
+
   Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
 
   delay(500);
-  if (isReady == "false") {
-    bluetooth.begin();
-    bluetooth.setMessageHandler(onBluetoothMessage, onBluetoothStatus);    
-  } 
-  else if (isReady == "true") {
-    imageBuffer = (uint16_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint16_t));
-    if (!imageBuffer)
-      Serial.println("Failed to allocate image buffer");
-    if (!loadDefaultPicture())
-        Serial.println("Failed to load default image");
-  }
+  imageBuffer = (uint8_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint8_t));
+  if (!imageBuffer)
+    Serial.println("Failed to allocate image buffer");
+  if (!loadDefaultPicture())
+    Serial.println("Failed to load default image");
 
+  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
 }
 
 void loop() {
   unsigned long now = millis();
 
-  if (now - updateOledTimer >= UPDATE_OLED_PERIOD) {
+  /*if (now - updateOledTimer >= UPDATE_OLED_PERIOD) {
     updateOledTimer = now;
-    //drawOled("Connected to", WiFi.localIP().toString(), wsStatus);
-  }
+    drawOled("Connected to", WiFi.localIP().toString(), wsStatus);
+  }*/
 
-  if (WiFi.status() == WL_CONNECTED && isReady == "true") {
+  if (WiFi.status() == WL_CONNECTED) {
     if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
       updateTftTimer = now;
       drawTftJPEG();
@@ -635,32 +600,9 @@ void loop() {
         isWifiConnect = true;
       }
     }
-
-    if (isIpRequest && btStatus == "CONNECTED" && WiFi.status() == WL_CONNECTED) {
-      JsonDocument json; 
-      String jsonString = "";
-
-      json["Ip"] = WiFi.localIP().toString();
-      serializeJson(json, jsonString);
-      bluetooth.send(jsonString);
-      isIpRequest = false;
-    }
-
-    if (isSetup == "true" && isReady == "false" && WiFi.status() == WL_CONNECTED) {
-      btStatus = "";
-      saveSetup("true", "true");
-      ESP.restart();
-    }
   }
 
   if (now - lastNotify >= NOTIFY_PERIOD) {
     lastNotify = now;
-  }
-
-  if (isReset) {
-      Serial.println("Resetting");
-      saveWifi("", "");
-      saveSetup("false", "false");
-      ESP.restart();
   }
 }
