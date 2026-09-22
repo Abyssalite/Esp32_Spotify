@@ -1,5 +1,5 @@
-public sealed class WifiInput
+public sealed class UpdateInput
 {
-    public string Ssid { get; set; } = "";
-    public string Password { get; set; } = "";
+    public string FirstField { get; set; } = "";
+    public string SecondField { get; set; } = "";
 }

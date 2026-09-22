@@ -47,7 +47,7 @@ public partial class AddDeviceViewModel : ViewModelBase, IHandleBackNavigation
         };
 
         var result = await _store.StoreAddDevice(device);
-        if (result) return;
+        if (!result) return;
         
         await _navigator.OpenPrevious();
     }

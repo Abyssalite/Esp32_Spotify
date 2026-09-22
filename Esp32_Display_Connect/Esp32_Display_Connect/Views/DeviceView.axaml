@@ -6,8 +6,12 @@
              x:Class="Esp32_Display_Connect.Views.DeviceView"
              x:DataType="vm:DeviceViewModel">
 
-    <Grid RowDefinitions="Auto,*">
-        <Border Grid.Row="0" VerticalAlignment="Center" CornerRadius="10" Background="#3333">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Border Grid.Row="0" 
+            HorizontalAlignment="Stretch" 
+            CornerRadius="10" 
+            Background="#3333">
+
             <Grid ColumnDefinitions="Auto,*">		
                 <Button
                     Grid.Column="0"
@@ -54,8 +58,9 @@
             Grid.Row="1" 
             VerticalAlignment="Center" 
             CornerRadius="10" 
-            Margin="100 0" 
-            Background="#3333">
+            Margin="80 0" 
+            Background="#3333"
+            ClipToBounds="True">
             
             <StackPanel Margin="25" Spacing="8">
 
@@ -66,14 +71,71 @@
 					<TextBlock Text="{Binding DeviceInfo.ArtistName}" FontSize="18"/>
 
 					<TextBlock Text="Image Angle" FontWeight="SemiBold" Margin="0 8 0 0"/>
-					<TextBlock Text="{Binding DeviceInfo.ImgAngle, StringFormat='{}{0:0.0}'}" FontSize="18"/>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock VerticalAlignment="Center" Text="{Binding DeviceInfo.ImgAngle, StringFormat='{}{0:0.0}'}" FontSize="18"/>
+                        <NumericUpDown VerticalAlignment="Center" Value="{Binding Angle}" FormatString="0.0" Minimum="0" Maximum="360" />
+                    </StackPanel>
 
 					<TextBlock Text="Is Playing" FontWeight="SemiBold" Margin="0 8 0 0"/>
 					<TextBlock Text="{Binding DeviceInfo.IsPlaying}" FontSize="18"/>
 
 					<TextBlock Text="Is Spin Mode" FontWeight="SemiBold" Margin="0 8 0 0"/>
-					<TextBlock Text="{Binding DeviceInfo.IsSpinMode}" FontSize="18"/>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock VerticalAlignment="Center" Text="{Binding DeviceInfo.IsSpinMode}" FontSize="18"/>
+                        <ToggleButton Grid.Column="1"
+                            Width="30" 
+                            Height="30" 
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            BorderBrush="Transparent"
+                            IsChecked="{Binding ToggleSpin, Mode=TwoWay}" />
+                    </StackPanel>
 				</StackPanel>
+        </Border>
+
+        <Border Grid.Row="2" 
+            HorizontalAlignment="Stretch" 
+            CornerRadius="10" 
+            Background="#3333">
+
+            <StackPanel Orientation="Horizontal"
+                HorizontalAlignment="Center" 
+                VerticalAlignment="Center"
+                Margin="0 10 0 0">
+
+                <Button Content="Change IP" 
+                    Width="110" 
+                    Height="40" 
+                    Padding="10"
+                    Margin="10"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    BorderBrush="Transparent"
+                    Background="#FAAA"
+                    Command="{Binding ChangeIpCommand}" />
+                <Button Content="Change Wifi" 
+                    Width="110" 
+                    Height="40" 
+                    Padding="10"
+                    Margin="10"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    BorderBrush="Transparent"
+                    Background="#FAAA"
+                    Command="{Binding ChangeWifiCommand}" />
+                <Button Content="Change Key" 
+                    Width="110" 
+                    Height="40" 
+                    Padding="10"
+                    Margin="10"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    BorderBrush="Transparent"
+                    Background="#FAAA"
+                    Command="{Binding ChangeLastfmCommand}" />
+            </StackPanel> 
         </Border>
     </Grid>
 

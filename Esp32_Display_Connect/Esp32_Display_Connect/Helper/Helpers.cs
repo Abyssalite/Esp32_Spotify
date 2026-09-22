@@ -35,7 +35,7 @@ public static class Helpers
     private static string GetAppDataPath()
     {
         var folder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var appFolder = Path.Combine(folder, "AppName");
+        var appFolder = Path.Combine(folder, "Esp32_Display");
         Directory.CreateDirectory(appFolder);
         return appFolder;
     }

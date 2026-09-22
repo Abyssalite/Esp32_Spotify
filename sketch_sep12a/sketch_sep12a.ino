@@ -23,7 +23,7 @@
 #define DISPLAY_WIDTH 240
 #define SCROLL_INTERVAL 500
 #define SCROLL_STEP 8
-#define MODE_BUTTON 9
+#define MODE_BUTTON 10
 #define MODE_DELAY 80
 
 unsigned long modePress = 0;
@@ -42,6 +42,7 @@ bool scrollDirection = true;   // true = moving left, false = moving right
 volatile bool isReset = false;
 volatile bool canSetInterrupt = true;
 volatile bool isSpinMode = false;
+volatile bool isRetry = false;
 
 String wifiSsid     = "";
 String wifiPassword = "";
@@ -58,13 +59,12 @@ String currentSongName = "";
 bool isPlaying = false;
 //bool isWifiConnect = false;
 
-Preferences preferences;
-
 //U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 TFT_eSPI tft = TFT_eSPI();
 JPEGDEC jpeg;
 WebSocket websocket;
 WiFiMulti wifiMulti;
+Preferences preferences;
 
 bool debounceMode(uint8_t btn, uint8_t isHigh) {
   if (isHigh) return false;
@@ -83,7 +83,7 @@ bool debounceMode(uint8_t btn, uint8_t isHigh) {
 void IRAM_ATTR modeButtonISR() {
   if (debounceMode(MODE_BUTTON, digitalRead(MODE_BUTTON))) {
     isSpinMode = !isSpinMode;
-    currentSongName = "";
+    isRetry = true;
     imageAngle = 0.0f;
   }
 }
@@ -158,7 +158,6 @@ void wsDataSend() {
   datasJson["ImgAngle"] = imageAngle;
   datasJson["IsPlaying"] = isPlaying;
   datasJson["IsSpinMode"] = isSpinMode;
-
 
   websocket.notifyClients(&datasJson);
 }
@@ -370,6 +369,7 @@ bool loadDefaultPicture() {
     jpeg.close();
 
   } else {
+    Serial.println("Failed to load default image");  
     return false;
   }
   return true;
@@ -427,13 +427,15 @@ void reconnectSpinner() {
 
 void showNowPlaying() {
   // Draw album art
-  if (songName != currentSongName) {
+  if (songName != currentSongName || isRetry) {
     imageUrl = getArtwork(artistName, songName);
 
-    if (!downloadAndSaveImage(0, 0))
-      if(!loadDefaultPicture())
-        Serial.println("Failed to load default image");   
-
+    if (!downloadAndSaveImage(0, 0)) {
+      isRetry = true;  
+      Serial.println("Retry");       
+      loadDefaultPicture();
+    } else isRetry = false;
+  
     currentSongName = songName;
     imageAngle = 0.0f;
     scrollOffset = 0;
@@ -530,7 +532,28 @@ bool getNowPlaying() {
 }
 
 void onWebSocketMessage(const String& message) {
-    Serial.printf("WS RX: %s\n", message);
+  JsonDocument dataJson;
+  deserializeJson(dataJson, message);
+
+  auto data = dataJson["Data"].as<String>();
+  Serial.println(data);
+  if (data != "null") {
+    if (data == "Wifi") {
+      saveWifi(dataJson["Ssid"].as<String>(), dataJson["Pass"].as<String>());
+      Serial.println("Restarting");
+      ESP.restart();
+    } else if (data == "Lastfm") {
+      saveUser(dataJson["User"].as<String>(), dataJson["Key"].as<String>());
+      Serial.println("Restarting");
+      ESP.restart();
+    } else if (data == "Angle") {
+      imageAngle = dataJson["Angle"].as<float>();
+    } else if (data == "IsSpin") {
+      isSpinMode = dataJson["IsSpin"].as<bool>();
+      isRetry = true;
+      imageAngle = 0.0f;      
+    }
+  }
 }
 void onWebSocketStatus(const bool& status) {
     wsStatus = status;
@@ -562,7 +585,7 @@ void setup() {
   wifiSsid = loadSsid();
   wifiPassword = loadWifiPass();
   if (wifiSsid != "" && wifiPassword != "") {
-    //wifiMulti.addAP(wifiSsid, wifiPassword);
+    wifiMulti.addAP(wifiSsid.c_str(), wifiPassword.c_str());
   }
 
   delay(500);
@@ -574,9 +597,9 @@ void setup() {
   imageBuffer = (uint8_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint8_t));
   if (!imageBuffer)
     Serial.println("Failed to allocate image buffer");
-  if (imageBuffer != nullptr) {
-    memset(imageBuffer, 0, IMAGE_SIZE * IMAGE_SIZE);
-  }
+  if (imageBuffer != nullptr) 
+    loadDefaultPicture(); 
+  
   Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
 }
 
@@ -612,13 +635,13 @@ void loop() {
       showNowPlaying();
     }
   } 
-  else {
+  /*else {
     if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
       updateTftTimer = now;
       spinner = (spinner + 1) % 4;
       reconnectSpinner();
     }
-  }
+  }*/
 
   if (now - reconnectTimer >= RECONNECT_PERIOD) {
     reconnectTimer = now;

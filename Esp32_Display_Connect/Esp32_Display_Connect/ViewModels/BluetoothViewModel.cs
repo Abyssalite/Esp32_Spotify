@@ -110,7 +110,7 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         await _bluetooth.StartReceiveAsync(_events);  
         _popup.Close();
 
-        var input = new InputPopupViewModel(_popup);
+        /*var input = new InputPopupViewModel(_popup);
         var tmp = await _popup.ShowInputPopup(input);
         if (tmp is WifiInput wifi)
         {
@@ -129,7 +129,7 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         else
         {
             await _navigator.OpenPrevious(); 
-        }
+        }*/
     }
 
     /*private async Task AddDevice(string ip, BluetoothDevice btDevice)

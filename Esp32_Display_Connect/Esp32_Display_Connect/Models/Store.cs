@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Custom_EventHub;
 using Esp32_Display_Connect.Events;
+using Metsys.Bson;
 
 public class Store
 {
@@ -35,11 +36,23 @@ public class Store
     public async Task<bool> StoreAddDevice(Device device)
     {
         var deviceName = DevicesList.FirstOrDefault(d => d.Name == device.Name);
-        if (deviceName != null) return true;
+        if (deviceName != null) return false;
 
         DevicesList.Add(device);
 
         await Helpers.SaveAsync(this);
-        return false;
+        return true;
+    }
+
+    public async Task<bool> StoreUpdateDeviceIp(Device device, string ip)
+    {
+        var deviceName = DevicesList.FirstOrDefault(d => d.Name == device.Name);
+        if (deviceName == null) return false;
+        if (!Helpers.IsValidIP(ip)) return false;
+
+        device.Address = ip;
+
+        await Helpers.SaveAsync(this);
+        return true;
     }
 }

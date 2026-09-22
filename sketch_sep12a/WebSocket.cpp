@@ -70,6 +70,8 @@ void WebSocket::onWsEvent(
     }
     else if (type == WS_EVT_DATA) {
         if (_statusHandler != nullptr)
-            _messageHandler(String((char*)data).substring(0, len));
+        {
+            _messageHandler(String((char*)data));
+        }
     }
 }
