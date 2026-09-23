@@ -97,8 +97,8 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         
         try
         {            
-            var notify = new ConnectPopupViewModel("Connecting...", _popup);
-            _ = _popup.ShowNotifyPopup(notify);
+            //var notify = new ConnectPopupViewModel("Connecting...", _popup);
+            //_ = _popup.ShowNotifyPopup(notify);
             _connectedDevice = await _bluetooth.ConnectAsync(device);
         } 
         catch

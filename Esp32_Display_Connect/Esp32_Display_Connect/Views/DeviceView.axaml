@@ -92,6 +92,17 @@
                             BorderBrush="Transparent"
                             IsChecked="{Binding ToggleSpin, Mode=TwoWay}" />
                     </StackPanel>
+
+                    <Button Content="Open Logs" 
+                        Width="110" 
+                        Height="40" 
+                        Padding="10"
+                        Margin="0 10"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        BorderBrush="Transparent"
+                        Background="#FAAA"
+                        Command="{Binding DebugViewCommand}" />
 				</StackPanel>
         </Border>
 

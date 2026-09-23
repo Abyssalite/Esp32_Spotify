@@ -12,17 +12,36 @@
 
     <Grid Background="#66000000"
         MinWidth="400">
-
+        
         <Border CornerRadius="30"
             Background="Black"
-            HorizontalAlignment="Center"
+            HorizontalAlignment="Stretch"
             VerticalAlignment="Center"
-            Padding="200 100">
-            <TextBlock FontSize="16"
-                FontWeight="600"
-                HorizontalAlignment="Stretch"
+            Width="500"
+            Height="300">
+
+            <Grid x:Name="InputGrid" 
+                HorizontalAlignment="Stretch" 
                 VerticalAlignment="Center"
-                Text="{Binding Text}" />
+                RowDefinitions="*,Auto">
+
+                <StackPanel Grid.Row="0" HorizontalAlignment="Center" Spacing="8" Margin="0 8">
+					<TextBox Height="100" Width="300" Text="{Binding ImageUrl}" TextWrapping="Wrap" IsReadOnly="True"/>
+
+					<TextBox Height="100" Width="300" Text="{Binding Logs}" TextWrapping="Wrap" IsReadOnly="True"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    Margin="0 8">
+                    
+                    <Button
+                        Command="{Binding CloseCommand}"
+                        Content="Close" />
+                </StackPanel>
+            </Grid>   
         </Border>
     </Grid>
 

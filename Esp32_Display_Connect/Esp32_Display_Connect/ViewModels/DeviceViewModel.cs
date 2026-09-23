@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -61,6 +62,7 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
     public ICommand? ChangeWifiCommand { get; }
     public ICommand? ChangeLastfmCommand { get; }
     public ICommand? ChangeIpCommand { get; }
+    public ICommand? DebugViewCommand { get; }
 
     public DeviceViewModel(
         Store store,
@@ -77,12 +79,15 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
         ChangeIpCommand = new AsyncRelayCommand(updateIp);
         ChangeWifiCommand = new AsyncRelayCommand(updateWifi);
         ChangeLastfmCommand = new AsyncRelayCommand(updateLastfm);
-
+        DebugViewCommand = new AsyncRelayCommand(() => 
+            _  = _popup.ShowNotifyPopup(new ConnectPopupViewModel(_popup, _events))
+        );
 
         _subscriptions.Add(_events.Subscribe<StatusReceivedEvent>(async evt =>
         {
             DeviceInfo = evt.deviceStatus;
             OnPropertyChanged(nameof(DeviceInfo));
+            _events.Publish(new DeviceLogsChangedEvent(DeviceInfo.ImgUrl, DeviceInfo.Logs));
             ToggleSpin = DeviceInfo.IsSpinMode;
 
         }));

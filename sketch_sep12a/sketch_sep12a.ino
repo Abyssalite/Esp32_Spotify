@@ -49,6 +49,7 @@ String wifiSsid     = "";
 String wifiPassword = "";
 String apiKey   = "";
 String userName = "";
+String logs = "";
 bool wsStatus   = false;
 
 String imageUrl   = "";
@@ -157,8 +158,10 @@ void wsDataSend() {
   datasJson["ImgAngle"] = imageAngle;
   datasJson["IsPlaying"] = isPlaying;
   datasJson["IsSpinMode"] = isSpinMode;
+  datasJson["Logs"] = logs;
 
   websocket.notifyClients(&datasJson);
+  logs = "Free heap: " + String(ESP.getFreeHeap()) + "\n";
 }
 
 uint8_t rgb16to8(uint16_t c) {
@@ -224,60 +227,9 @@ int JPEGDraw(JPEGDRAW *pDraw) {
   return 1;
 }
 
-void drawTftJPEG() {
-  const float srcCenter = (IMAGE_SIZE - 1) / 2.0f;
-  const float dstCenter = (DISPLAY_WIDTH - 1) / 2.0f;
-  const int radius = DISPLAY_WIDTH / 2;
-  const int radius2 = radius * radius;
-  const float scale = (float)DISPLAY_WIDTH / IMAGE_SIZE;
-
-  float rad = imageAngle * PI / 180.0f;
-  float cosA = cos(rad);
-  float sinA = sin(rad);
-
-  // Line buffer for one row
-  uint16_t lineBuf[DISPLAY_WIDTH];
-
-  for (int y = 0; y < DISPLAY_WIDTH; y++) {
-    // Pre-calculate vertical distance for circle test
-    int dyScreen = y - radius;
-    int dy2 = dyScreen * dyScreen;
-
-    for (int x = 0; x < DISPLAY_WIDTH; x++) {
-      int dxScreen = x - radius;
-
-      // Outside circle → transparent/black
-      if (dxScreen * dxScreen + dy2 > radius2) {
-        lineBuf[x] = TFT_BLACK;
-        continue;
-      }
-
-      // Map to source image with rotation
-      float dx = (x - dstCenter) / scale;
-      float dy = (y - dstCenter) / scale;
-
-      float srcX =  dx * cosA + dy * sinA + srcCenter;
-      float srcY = -dx * sinA + dy * cosA + srcCenter;
-
-      int ix = (int)round(srcX);
-      int iy = (int)round(srcY);
-
-      if (ix < 0 || ix >= IMAGE_SIZE || iy < 0 || iy >= IMAGE_SIZE) {
-        lineBuf[x] = TFT_BLACK;
-      } else {
-        uint8_t pixel8 = imageBuffer[iy * IMAGE_SIZE + ix];
-        lineBuf[x] = rgb8to16(pixel8);
-      }
-    }
-
-    // Push the whole line at once (much faster)
-    tft.pushImage(0, y, DISPLAY_WIDTH, 1, lineBuf);
-  }
-}
-
-bool downloadAndSaveImage(int x, int y) {  
+bool downloadAndSaveImage(int x, int y, String url) {  
   HTTPClient http;
-  http.begin(imageUrl);
+  http.begin(url);
   http.setReuse(false);
   http.setTimeout(10000);
   http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
@@ -285,7 +237,7 @@ bool downloadAndSaveImage(int x, int y) {
   int httpCode = http.GET();
 
   if (httpCode != 200) {
-    Serial.printf("Download Image failed: %d\n", httpCode);
+    logs += "Download Image failed: " + String(httpCode) + "\n";
     http.end();
     return false;
   }
@@ -300,7 +252,7 @@ bool downloadAndSaveImage(int x, int y) {
 
   File file = SPIFFS.open("/image.jpg", FILE_WRITE);
   if (!file) {
-    Serial.println("Failed to open /image.jpg for writing");
+    logs += "Failed to open /image.jpg for writing\n";
     http.end();
     return false;
   }
@@ -320,7 +272,7 @@ bool downloadAndSaveImage(int x, int y) {
       if (got > 0) {
         size_t written = file.write(chunk, got);
         if (written != got) {
-          Serial.println("SPIFFS write failed");
+          logs += "SPIFFS write failed\n";
           file.close();
           http.end();
           SPIFFS.remove("/image.jpg");
@@ -334,33 +286,33 @@ bool downloadAndSaveImage(int x, int y) {
     }
   }
   
-  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+  logs += "Free heap: " + String(ESP.getFreeHeap()) + "\n";
   file.close();
   http.end();
 
   if (bytesRead != totalLen) {
-    Serial.printf("Incomplete download %d/%d\n", bytesRead, totalLen);
+    logs += "Incomplete download. " + String(bytesRead + '/' +  totalLen) + "\n";
     return false;
   }
-  Serial.printf("SPIFFS image size: %u bytes\n", SPIFFS.open("/image.jpg", FILE_READ).size());
+  logs += "SPIFFS image size: " + String(SPIFFS.open("/image.jpg", FILE_READ).size()) + "\n";
 
   // ===== Decode with JPEGDEC =====
   File jpegFile = SPIFFS.open("/image.jpg", FILE_READ);
 
   if (!jpegFile) {
-    Serial.println("Failed to open JPEG from SPIFFS");
+    logs += "Failed to open JPEG from SPIFFS\n";
     return false;
   }
 
   if (!jpeg.open(jpegFile, isSpinMode ? savePixel : JPEGDraw)) {
-      Serial.println("JPEGDEC failed to open SPIFFS image");
+      logs += "JPEGDEC failed to open SPIFFS image\n";
       jpegFile.close();
       return false;
   }
   jpeg.setPixelType(isSpinMode ? RGB565_LITTLE_ENDIAN : RGB565_BIG_ENDIAN);
 
   if (jpeg.getWidth() != IMAGE_SIZE || jpeg.getHeight() != IMAGE_SIZE) {
-    Serial.printf("Wrong image size: %d x %d\n", jpeg.getWidth(), jpeg.getHeight());
+    logs += "Wrong image size: " + String(jpeg.getWidth() + 'x' + jpeg.getHeight()) + "\n";
     jpeg.close();
     return false;
   }
@@ -386,7 +338,7 @@ bool loadDefaultPicture() {
     jpeg.close();
 
   } else {
-    Serial.println("Failed to load default image");  
+    logs += "Failed to load default image\n";  
     return false;
   }
   return true;
@@ -442,35 +394,6 @@ void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize, boo
   drawScrollingText(String(icon[spinner]), 160, TFT_WHITE, 4);
 }*/
 
-void updateImageBuffer() {
-  if (songName != currentSongName || isRetry) {
-    imageUrl = getArtwork(artistName, songName);
-    Serial.println(imageUrl);       
-    isRetry = false;
-
-    if (imageUrl != "") {
-      if (!downloadAndSaveImage(0, 0)) {
-        isRetry = true;  
-        Serial.println("Retry");       
-        loadDefaultPicture();
-      }
-    } else loadDefaultPicture();
-
-    currentSongName = songName;
-    imageAngle = 0.0f;
-    scrollOffset = 0;
-    scrollDirection = true;  
-  }
-}
-
-void showNowPlaying() {
-  tft.fillRect(0, 241, 240, 50, TFT_BLACK);
-  // Song name
-  drawScrollingText(songName, 265, TFT_WHITE, 2);
-  // Artist name
-  drawScrollingText(artistName, 290, TFT_CYAN, 1);
-}
-
 String cleanNonAscii(String text) {
   String result = "";
   String replace = "";
@@ -482,6 +405,9 @@ String cleanNonAscii(String text) {
 
   replace.replace("“", "\"");
   replace.replace("”", "\"");
+  replace.replace("’", "\'");
+  replace.replace("`", "\'");
+  replace.replace("´", "\'"); 
   replace.replace("「", " (");
   replace.replace("」", ") ");
 
@@ -538,6 +464,7 @@ String cleanNameText(String text) {
   int p1 = lower.indexOf("feat.");
   int p2 = lower.indexOf("ft.");
   int p3 = lower.indexOf("featur");
+  int p4 = lower.indexOf("(feat");
   int p5 = lower.indexOf("live");
   int p6 = lower.indexOf("choreography");
   int p7 = lower.indexOf("tour");
@@ -546,6 +473,7 @@ String cleanNameText(String text) {
   if (p1 >= 0) cutPos = p1;
   if (p2 >= 0 && (cutPos < 0 || p2 < cutPos)) cutPos = p2;
   if (p3 >= 0 && (cutPos < 0 || p3 < cutPos)) cutPos = p3;
+  if (p4 >= 0 && (cutPos < 0 || p4 < cutPos)) cutPos = p4;
   if (p5 >= 0 && (cutPos < 0 || p5 < cutPos)) cutPos = p5;
   if (p6 >= 0 && (cutPos < 0 || p6 < cutPos)) cutPos = p6;
   if (p7 >= 0 && (cutPos < 0 || p7 < cutPos)) cutPos = p7;
@@ -577,13 +505,12 @@ String cleanNameText(String text) {
     lower.replace("  ", " ");
   }
 
-  lower.trim();
   return lower;
 }
 
 String getArtwork(String artist, String song) {
   if (artist == "" || song == "") {
-    Serial.println("Missing song datas.");
+    logs += "Missing song datas.\n";
     return "";
   }
 
@@ -603,10 +530,12 @@ String getArtwork(String artist, String song) {
   }   
   else {
     if (cleanSong.indexOf(" \"") >= 0) {
-      term = cleanSong;
+      if (cleanSong.indexOf("\" ") >= 0) 
+        term = cleanSong;
     }
     else if (cleanSong.indexOf(" (") >= 0) {
-      term = cleanSong;
+      if (cleanSong.indexOf(") ") >= 0)
+        term = cleanSong;
     }
   }
   term = charFilter(term);
@@ -622,7 +551,7 @@ String getArtwork(String artist, String song) {
   int code = http.GET();
 
   if (code != 200) {
-    Serial.printf("ITune error: %d\n", code);
+    logs += "ITune error: " + String(code) + "\n";
     http.end();
     return "";
   }
@@ -632,19 +561,104 @@ String getArtwork(String artist, String song) {
 
   JsonDocument imgJson;
   deserializeJson(imgJson, payload);
+  
+  String art = "term:" + term + "\n";
 
-  if (imgJson["resultCount"] == 0) return "";
+  if (imgJson["resultCount"] == 0) return art ;
 
-  String art = imgJson["results"][0]["artworkUrl100"].as<String>(); 
+  art += imgJson["results"][0]["artworkUrl100"].as<String>(); 
   art.replace("100x100bb", "240x240bb");
   art.replace("http://", "https://");
 
   return art;
 }
 
+void updateImageBuffer() {
+  if (songName != currentSongName || isRetry) {
+    imageUrl = getArtwork(artistName, songName);
+    isRetry = false;
+
+    String url = imageUrl;
+    int urlPos = url.indexOf("https://");
+
+    if (urlPos >= 0) {
+      url = url.substring(urlPos, url.length());
+      if (!downloadAndSaveImage(0, 0, url)) {
+        isRetry = true;  
+        logs += "Retry\n";       
+        loadDefaultPicture();
+      }
+    } else loadDefaultPicture();
+
+    currentSongName = songName;
+    imageAngle = 0.0f;
+    scrollOffset = 0;
+    scrollDirection = true;  
+  }
+}
+
+void drawTftJPEG() {
+  const float srcCenter = (IMAGE_SIZE - 1) / 2.0f;
+  const float dstCenter = (DISPLAY_WIDTH - 1) / 2.0f;
+  const int radius = DISPLAY_WIDTH / 2;
+  const int radius2 = radius * radius;
+  const float scale = (float)DISPLAY_WIDTH / IMAGE_SIZE;
+
+  float rad = imageAngle * PI / 180.0f;
+  float cosA = cos(rad);
+  float sinA = sin(rad);
+
+  // Line buffer for one row
+  uint16_t lineBuf[DISPLAY_WIDTH];
+
+  for (int y = 0; y < DISPLAY_WIDTH; y++) {
+    // Pre-calculate vertical distance for circle test
+    int dyScreen = y - radius;
+    int dy2 = dyScreen * dyScreen;
+
+    for (int x = 0; x < DISPLAY_WIDTH; x++) {
+      int dxScreen = x - radius;
+
+      // Outside circle → transparent/black
+      if (dxScreen * dxScreen + dy2 > radius2) {
+        lineBuf[x] = TFT_BLACK;
+        continue;
+      }
+
+      // Map to source image with rotation
+      float dx = (x - dstCenter) / scale;
+      float dy = (y - dstCenter) / scale;
+
+      float srcX =  dx * cosA + dy * sinA + srcCenter;
+      float srcY = -dx * sinA + dy * cosA + srcCenter;
+
+      int ix = (int)round(srcX);
+      int iy = (int)round(srcY);
+
+      if (ix < 0 || ix >= IMAGE_SIZE || iy < 0 || iy >= IMAGE_SIZE) {
+        lineBuf[x] = TFT_BLACK;
+      } else {
+        uint8_t pixel8 = imageBuffer[iy * IMAGE_SIZE + ix];
+        lineBuf[x] = rgb8to16(pixel8);
+      }
+    }
+
+    // Push the whole line at once (much faster)
+    tft.pushImage(0, y, DISPLAY_WIDTH, 1, lineBuf);
+  }
+}
+
+void showNowPlaying() {
+  tft.fillRect(0, 241, 240, 50, TFT_BLACK);
+  // Song name
+  drawScrollingText(songName, 265, TFT_WHITE, 2);
+  // Artist name
+  drawScrollingText(artistName, 290, TFT_CYAN, 1);
+}
+
 bool getNowPlaying() {
   if (userName == "" || apiKey == "") {
-    Serial.println("Missing login datas.");
+    logs += "Missing login datas.\n";
     return false;
   }
 
@@ -662,7 +676,7 @@ bool getNowPlaying() {
   int httpCode = http.GET();
 
   if (httpCode != 200) {
-    Serial.printf("Last.fm error: %d\n", httpCode);
+    logs += "Last.fm error: " + String(httpCode) + "\n";
     http.end();
     return false;
   }
@@ -693,11 +707,11 @@ void onWebSocketMessage(const String& message) {
   if (data != "null") {
     if (data == "Wifi") {
       saveWifi(dataJson["Ssid"].as<String>(), dataJson["Pass"].as<String>());
-      Serial.println("Restarting");
+      logs += "Restarting\n";
       ESP.restart();
     } else if (data == "Lastfm") {
       saveUser(dataJson["User"].as<String>(), dataJson["Key"].as<String>());
-      Serial.println("Restarting");
+      logs += "Restarting\n";
       ESP.restart();
     } else if (data == "Angle") {
       imageAngle = dataJson["Angle"].as<float>();
@@ -713,23 +727,21 @@ void onWebSocketStatus(const bool& status) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  //Serial.begin(115200);
+  //u8g2.begin();
+  //u8g2.enableUTF8Print();
 
   WiFi.mode(WIFI_STA); 
   tft.init();
   tft.fillScreen(TFT_BLACK);
   tft.setRotation(2); // 180° flip
 
-  //u8g2.begin();
-  //u8g2.enableUTF8Print();
-
   if (!SPIFFS.begin(true)) {
-    Serial.println("SPIFFS mount failed!");
+    logs += "SPIFFS mount failed!\n";
     return;
   }
 
-  Serial.printf("SPIFFS total: %u bytes\n", SPIFFS.totalBytes());
-  Serial.printf("SPIFFS used:  %u bytes\n", SPIFFS.usedBytes());
+  logs += "SPIFFS used: " + String(SPIFFS.usedBytes()) + "\n";
 
   pinMode(MODE_BUTTON, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(MODE_BUTTON), modeButtonISR, FALLING);
@@ -756,11 +768,11 @@ void setup() {
   delay(500);
   imageBuffer = (uint8_t*)malloc(IMAGE_SIZE * IMAGE_SIZE * sizeof(uint8_t));
   if (!imageBuffer)
-    Serial.println("Failed to allocate image buffer");
+    logs += "Failed to allocate image buffer\n";
   if (imageBuffer != nullptr) 
     loadDefaultPicture(); 
   
-  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+  logs += "Free heap: " + String(ESP.getFreeHeap()) + "\n";
 }
 
 void loop() {
@@ -787,7 +799,7 @@ void loop() {
     {
       apiTimer = now;
       if (!getNowPlaying())
-        Serial.println("Failed to get current song");
+        logs += "Failed to get current song\n";
     }
 
     if (now - updateBufferTimer >= UPDATE_BUFFER_PERIOD) {
