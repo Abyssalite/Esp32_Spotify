@@ -1,4 +1,3 @@
-using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -37,6 +36,24 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
             };
             _connection.Send(JsonSerializer.Serialize(send));
             OnPropertyChanged(nameof(ToggleSpin));
+        }
+    }
+    private bool? _toggleDisplay  = true;
+    public bool? ToggleDisplay
+    { 
+        get => _toggleDisplay;
+        set
+        {
+            if (value == null || value == _toggleDisplay) return;
+
+            _toggleDisplay = value;
+            var send = new JsonObject
+            {
+                ["Data"] = "Display",
+                ["IsEnable"] = _toggleDisplay,
+            };
+            _connection.Send(JsonSerializer.Serialize(send));
+            OnPropertyChanged(nameof(ToggleDisplay));
         }
     }
     private float? _angle = 0.0f;
@@ -89,7 +106,7 @@ public partial class DeviceViewModel : ViewModelBase, IHandleBackNavigation
             OnPropertyChanged(nameof(DeviceInfo));
             _events.Publish(new DeviceLogsChangedEvent(DeviceInfo.ImgUrl, DeviceInfo.Logs));
             ToggleSpin = DeviceInfo.IsSpinMode;
-
+            ToggleDisplay = DeviceInfo.IsEnable;
         }));
         _subscriptions.Add(_events.Subscribe<ConnectionStatusChangedEvent>(async evt =>
         {

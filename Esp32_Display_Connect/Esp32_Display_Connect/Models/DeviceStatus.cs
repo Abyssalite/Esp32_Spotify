@@ -7,4 +7,5 @@ public sealed class DeviceStatus
     public float? ImgAngle { get; set; }
     public bool? IsPlaying { get; set; }
     public bool? IsSpinMode { get; set; }
+    public bool? IsEnable { get; set; }
 }

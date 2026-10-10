@@ -1,3 +1,4 @@
+//#define SPI_FREQUENCY 20000000
 #include <FS.h>
 #include <SPIFFS.h>
 //#include <U8g2lib.h>
@@ -15,35 +16,42 @@
 #include "cd_image.h"
 #include "WebSocket.h"
 
+#define API_PERIOD 10000
 #define UPDATE_BUFFER_PERIOD 2000
-#define UPDATE_TFT_PERIOD 500
 #define RECONNECT_PERIOD 1000
 #define NOTIFY_PERIOD 1000
-#define API_PERIOD 10000
+#define UPDATE_TFT_PERIOD 500
+#define DISPLAY_TOGGLE_PERIOD 500
+#define SCROLL_INTERVAL 500
 #define IMAGE_SIZE 240
 #define DISPLAY_WIDTH 240
-#define SCROLL_INTERVAL 500
+#define MODE_DELAY 20
 #define SCROLL_STEP 8
-#define MODE_BUTTON 10
-#define MODE_DELAY 80
+#define MODE_BUTTON 4
+#define DISPLAY_ENABLE 3
+uint32_t DISPLAY_ON_PERIOD = 600000;
 
-unsigned long modePress = 0;
-unsigned long updateBufferTimer = 0;
-unsigned long updateTftTimer = 0;
-unsigned long reconnectTimer = 0;
+unsigned long sleepTimer = 0;
 unsigned long apiTimer = 0;
+unsigned long updateBufferTimer = 0;
+unsigned long reconnectTimer = 0;
 unsigned long lastNotify = 0;
+unsigned long displayToggleTimer = 0;
+unsigned long updateTftTimer = 0;
 unsigned long lastScrollTime = 0;
+unsigned long modePress = 0;
+unsigned long now = 0;
 
-uint8_t spinner = 0;
 uint8_t *imageBuffer = nullptr;
 float imageAngle = 0.0f;
 int scrollOffset = 0;
 bool scrollDirection = true;   // true = moving left, false = moving right
 volatile bool isReset = false;
 volatile bool canSetInterrupt = true;
-volatile bool isSpinMode = false;
+volatile bool isSpinMode = true;
 volatile bool isRetry = false;
+volatile bool isDisplayOn = true;
+volatile bool lastDisplayOn = false;
 
 String wifiSsid     = "";
 String wifiPassword = "";
@@ -66,8 +74,8 @@ WebSocket websocket;
 WiFiMulti wifiMulti;
 Preferences preferences;
 
-bool debounceMode(uint8_t btn, uint8_t isHigh) {
-  if (isHigh) return false;
+bool debounceMode(uint8_t btn) {
+  //if (isHigh) return false;
   if (canSetInterrupt) {
     modePress = millis();
     canSetInterrupt = false;
@@ -75,16 +83,17 @@ bool debounceMode(uint8_t btn, uint8_t isHigh) {
   if (millis() - modePress > MODE_DELAY) {
     canSetInterrupt = true;
     modePress = 0;
-    return true;
+    return !digitalRead(btn);
   }
-  return false;
+  return false;                                                                    
 }
 
 void IRAM_ATTR modeButtonISR() {
-  if (debounceMode(MODE_BUTTON, digitalRead(MODE_BUTTON))) {
+  if (debounceMode(MODE_BUTTON)) {
     isSpinMode = !isSpinMode;
     isRetry = true;
     imageAngle = 0.0f;
+    isDisplayOn = true;
   }
 }
 
@@ -151,6 +160,7 @@ String loadWifiPass() {
 
 void wsDataSend() {
   JsonDocument datasJson;
+  logs +=  "\n";
 
   datasJson["SongName"] = songName;
   datasJson["ArtistName"] = artistName;
@@ -159,9 +169,12 @@ void wsDataSend() {
   datasJson["IsPlaying"] = isPlaying;
   datasJson["IsSpinMode"] = isSpinMode;
   datasJson["Logs"] = logs;
-
+  datasJson["IsEnable"] = isDisplayOn;
   websocket.notifyClients(&datasJson);
-  logs = "Free heap: " + String(ESP.getFreeHeap()) + "\n";
+
+  logs = "Free RAM: " + String(ESP.getFreeHeap()) + " \nFree SPIFFS: " +
+          String(SPIFFS.totalBytes()-SPIFFS.usedBytes()) + "\nRuntime: " +
+          String(now) + "ms\nSleep Time: " + String(now - sleepTimer) + "ms\n";
 }
 
 uint8_t rgb16to8(uint16_t c) {
@@ -291,7 +304,7 @@ bool downloadAndSaveImage(int x, int y, String url) {
   http.end();
 
   if (bytesRead != totalLen) {
-    logs += "Incomplete download. " + String(bytesRead + '/' +  totalLen) + "\n";
+    logs += "Incomplete download. " + String(bytesRead) + "/" +  String(totalLen) + "\n";
     return false;
   }
   logs += "SPIFFS image size: " + String(SPIFFS.open("/image.jpg", FILE_READ).size()) + "\n";
@@ -310,14 +323,19 @@ bool downloadAndSaveImage(int x, int y, String url) {
       return false;
   }
   jpeg.setPixelType(isSpinMode ? RGB565_LITTLE_ENDIAN : RGB565_BIG_ENDIAN);
+  int offsetX = x;
+  int offsetY = y;
 
   if (jpeg.getWidth() != IMAGE_SIZE || jpeg.getHeight() != IMAGE_SIZE) {
-    logs += "Wrong image size: " + String(jpeg.getWidth() + 'x' + jpeg.getHeight()) + "\n";
-    jpeg.close();
-    return false;
+    logs += "Wrong image size: " + String(jpeg.getWidth()) + "x" + String(jpeg.getHeight()) + "\n";
+
+    offsetX = (IMAGE_SIZE - jpeg.getWidth()) / 2;
+    offsetY = (IMAGE_SIZE - jpeg.getHeight()) / 2;
+    memset(imageBuffer, 0xFF, IMAGE_SIZE * IMAGE_SIZE);
+    tft.fillRect(0, 0, 240, 240, TFT_BLACK);
   }
 
-  if (!jpeg.decode(x, y, 0)) {
+  if (!jpeg.decode(offsetX, offsetY, 0)) {
     jpeg.close();
     return false;
   }
@@ -396,23 +414,30 @@ void drawScrollingText(String text, int y, uint16_t color, uint8_t textSize, boo
 
 String cleanNonAscii(String text) {
   String result = "";
-  String replace = "";
+  String replaceAscii = text;
 
-  replace.replace("ü", "ue");
-  replace.replace("ö", "oe");
-  replace.replace("ä", "ae");
-  replace.replace("ß", "ss");
+  replaceAscii.replace("ü", "ue");
+  replaceAscii.replace("ö", "oe");
+  replaceAscii.replace("ä", "ae");
+  replaceAscii.replace("ß", "ss");
 
-  replace.replace("“", "\"");
-  replace.replace("”", "\"");
-  replace.replace("’", "\'");
-  replace.replace("`", "\'");
-  replace.replace("´", "\'"); 
-  replace.replace("「", " (");
-  replace.replace("」", ") ");
+  replaceAscii.replace("„", "\"");
+  replaceAscii.replace("“", "\"");
+  replaceAscii.replace("”", "\"");
 
-  for (unsigned int i = 0; i < text.length(); i++) {
-    char c = text.charAt(i);
+  replaceAscii.replace("‘", "\'");
+  replaceAscii.replace("’", "\'");
+  replaceAscii.replace("`", "\'");
+  replaceAscii.replace("´", "\'");
+
+  replaceAscii.replace("「", " (");
+  replaceAscii.replace("」", ") ");
+
+  replaceAscii.replace("Fuer dich empfohlen", "");
+  replaceAscii.replace("Recommended for you", "");
+
+  for (unsigned int i = 0; i < replaceAscii.length(); i++) {
+    char c = replaceAscii.charAt(i);
     // Strip non-ASCII
     if (c>=0 && c <128) {
       result += c;
@@ -461,10 +486,10 @@ String cleanNameText(String text) {
 
   // Find the earliest featuring marker
   int cutPos = -1;
-  int p1 = lower.indexOf("feat.");
-  int p2 = lower.indexOf("ft.");
-  int p3 = lower.indexOf("featur");
-  int p4 = lower.indexOf("(feat");
+  int p1 = lower.indexOf("(feat");
+  int p2 = lower.indexOf("feat.");
+  int p3 = lower.indexOf("ft.");
+  int p4 = lower.indexOf("featur");
   int p5 = lower.indexOf("live");
   int p6 = lower.indexOf("choreography");
   int p7 = lower.indexOf("tour");
@@ -495,12 +520,12 @@ String cleanNameText(String text) {
   lower.replace("hd", "");
   lower.replace("4k", "");
   lower.replace("\'", "\"");
-  lower.replace("[", "(");
-  lower.replace("]", ")");
-  lower.replace("<", "(");
-  lower.replace(">", ")");
+  lower.replace("[", " (");
+  lower.replace("]", ") ");
+  lower.replace("<", " (");
+  lower.replace(">", ") ");
 
-    // Clean spaces
+  // Clean spaces
   while (lower.indexOf("  ") >= 0) {
     lower.replace("  ", " ");
   }
@@ -651,7 +676,10 @@ void drawTftJPEG() {
 void showNowPlaying() {
   tft.fillRect(0, 241, 240, 50, TFT_BLACK);
   // Song name
-  drawScrollingText(songName, 265, TFT_WHITE, 2);
+  if (!isSpinMode) {
+    drawScrollingText((isPlaying ? "> " : "| ") + songName, 265, TFT_WHITE, 2);
+  }
+  else drawScrollingText(songName, 265, TFT_WHITE, 2);
   // Artist name
   drawScrollingText(artistName, 290, TFT_CYAN, 1);
 }
@@ -719,6 +747,8 @@ void onWebSocketMessage(const String& message) {
       isSpinMode = dataJson["IsSpin"].as<bool>();
       isRetry = true;
       imageAngle = 0.0f;      
+    } else if (data == "Display") {
+      isDisplayOn = dataJson["IsEnable"].as<bool>();
     }
   }
 }
@@ -730,6 +760,8 @@ void setup() {
   //Serial.begin(115200);
   //u8g2.begin();
   //u8g2.enableUTF8Print();
+  pinMode(DISPLAY_ENABLE, OUTPUT);
+  digitalWrite(DISPLAY_ENABLE, HIGH);
 
   WiFi.mode(WIFI_STA); 
   tft.init();
@@ -740,8 +772,6 @@ void setup() {
     logs += "SPIFFS mount failed!\n";
     return;
   }
-
-  logs += "SPIFFS used: " + String(SPIFFS.usedBytes()) + "\n";
 
   pinMode(MODE_BUTTON, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(MODE_BUTTON), modeButtonISR, FALLING);
@@ -771,54 +801,75 @@ void setup() {
     logs += "Failed to allocate image buffer\n";
   if (imageBuffer != nullptr) 
     loadDefaultPicture(); 
-  
-  logs += "Free heap: " + String(ESP.getFreeHeap()) + "\n";
 }
 
 void loop() {
-  unsigned long now = millis();
-
+  now = millis();
   /*if (now - updateOledTimer >= UPDATE_OLED_PERIOD) {
     updateOledTimer = now;
     drawOled("Connected to", WiFi.localIP().toString(), wsStatus);
   }*/
 
   if (WiFi.status() == WL_CONNECTED) {
-    if ((now - updateTftTimer >= UPDATE_TFT_PERIOD) && isSpinMode) {
-      updateTftTimer = now;
-
-      drawTftJPEG();
-      if (isPlaying) {
-        imageAngle += 1.0f;
-        if (imageAngle >= 360.0f)
-          imageAngle = 0.0f;      
-      }
-    }
-
-    if (now - apiTimer >= API_PERIOD) 
-    {
+    if (now - apiTimer >= API_PERIOD) {
       apiTimer = now;
       if (!getNowPlaying())
         logs += "Failed to get current song\n";
     }
+    if (isDisplayOn) {
+      if ((now - updateTftTimer >= UPDATE_TFT_PERIOD) && isSpinMode) {
+        updateTftTimer = now;
 
-    if (now - updateBufferTimer >= UPDATE_BUFFER_PERIOD) {
-      updateBufferTimer = now;
-      updateImageBuffer();
-    }
+        logs += "drawTftJPEG\n";
+        drawTftJPEG();
+        if (isPlaying) {
+          imageAngle += 1.0f;
+          if (imageAngle >= 360.0f)
+            imageAngle = 0.0f;      
+        }
+      }
 
-    if (now - lastScrollTime >= SCROLL_INTERVAL) {
-      lastScrollTime = now;
-      showNowPlaying();
+      if (now - updateBufferTimer >= UPDATE_BUFFER_PERIOD) {
+        updateBufferTimer = now;
+        logs += "updateImageBuffer\n";
+        updateImageBuffer();
+      }
+
+      if (now - lastScrollTime >= SCROLL_INTERVAL) {
+        lastScrollTime = now;
+        showNowPlaying();
+      }
     }
   }
-  /*else {
-    if (now - updateTftTimer >= UPDATE_TFT_PERIOD) {
-      updateTftTimer = now;
-      spinner = (spinner + 1) % 4;
-      reconnectSpinner();
+
+  if (now - displayToggleTimer >= DISPLAY_TOGGLE_PERIOD) {
+    displayToggleTimer = now;
+
+    if (isPlaying) {
+      isDisplayOn = true;
+      sleepTimer = now;
     }
-  }*/
+    if (!isDisplayOn && lastDisplayOn != isDisplayOn) {
+      lastDisplayOn = isDisplayOn;
+      logs += "Display off\n";       
+      tft.fillRect(0, 0, 240, 320, TFT_BLACK);
+      digitalWrite(21, LOW);
+      digitalWrite(20, LOW);
+      digitalWrite(0, LOW);
+      digitalWrite(1, LOW);
+      digitalWrite(DISPLAY_ENABLE, LOW);
+    }
+    if (isDisplayOn && lastDisplayOn != isDisplayOn) {
+      lastDisplayOn = isDisplayOn;
+      isRetry = true; 
+      digitalWrite(DISPLAY_ENABLE, HIGH);
+    }  
+  }
+
+  if (DISPLAY_ON_PERIOD > 0 && now - sleepTimer >= DISPLAY_ON_PERIOD) {
+    sleepTimer = now;
+    if (!isPlaying) isDisplayOn = false;
+  }
 
   if (now - reconnectTimer >= RECONNECT_PERIOD) {
     reconnectTimer = now;
