@@ -5,7 +5,7 @@ public static class ServiceCollectionExtensions
 {
     public static void AddCommonServices(this IServiceCollection collection)
     {
-        collection.AddLogging();
+        //collection.AddLogging();
         collection.AddSingleton<Store>();
         collection.AddSingleton<IDeviceConnectionService, DeviceConnectionService>();
         //collection.AddSingleton<IBluetoothService, BluetoothService>();
@@ -14,6 +14,6 @@ public static class ServiceCollectionExtensions
         collection.AddTransient<SelectViewModel>();
         collection.AddTransient<AddDeviceViewModel>();
         collection.AddTransient<DeviceViewModel>();
-        collection.AddTransient<BluetoothViewModel>();
+        //collection.AddTransient<BluetoothViewModel>();
     }
 }

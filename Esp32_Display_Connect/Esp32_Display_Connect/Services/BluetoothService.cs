@@ -4,10 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Custom_EventHub;
-using Linux.Bluetooth;
-using Linux.Bluetooth.Extensions;
 using Esp32_Display_Connect.Events;
 using System.Text;
+/*using Linux.Bluetooth;
+using Linux.Bluetooth.Extensions;
 
 public sealed class BluetoothService : IBluetoothService
 {
@@ -168,13 +168,13 @@ public sealed class BluetoothService : IBluetoothService
         {
             var serviceProperties = await service.GetAllAsync();
 
-            /*if (!string.Equals(
+            if (!string.Equals(
                     serviceProperties.UUID,
                     Env.ServiceUuid,
                     StringComparison.OrdinalIgnoreCase))
             {
                 continue;
-            }*/
+            }
 
             _service = service;
 
@@ -316,4 +316,4 @@ public sealed class BluetoothService : IBluetoothService
 
         Console.WriteLine("BLE RX stopped.");
     }
-}
+}*/

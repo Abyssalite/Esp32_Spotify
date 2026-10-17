@@ -12,7 +12,7 @@ using Esp32_Display_Connect.Popup;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Esp32_Display_Connect.ViewModels;
+/*namespace Esp32_Display_Connect.ViewModels;
 
 public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
 {    
@@ -47,7 +47,7 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
     {             
         _bluetooth = bluetooth;
   
-        /*_subscriptions.Add(_events.Subscribe<BluetoothDiscoveredEvent>(async evt =>
+        _subscriptions.Add(_events.Subscribe<BluetoothDiscoveredEvent>(async evt =>
         {
             BtDevicesList.Add(evt.device);
         }));
@@ -61,7 +61,7 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
                 
                 await AddDevice(_deviceIp, _connectedDevice);
             }
-        }));*/
+        }));
 
         RescanCommand = new AsyncRelayCommand(ScanAsync);
 
@@ -110,7 +110,7 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         await _bluetooth.StartReceiveAsync(_events);  
         _popup.Close();
 
-        /*var input = new InputPopupViewModel(_popup);
+        var input = new InputPopupViewModel(_popup);
         var tmp = await _popup.ShowInputPopup(input);
         if (tmp is WifiInput wifi)
         {
@@ -129,10 +129,10 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         else
         {
             await _navigator.OpenPrevious(); 
-        }*/
+        }
     }
 
-    /*private async Task AddDevice(string ip, BluetoothDevice btDevice)
+    private async Task AddDevice(string ip, BluetoothDevice btDevice)
     {
         string name = Helpers.InputOrDefault(btDevice.Name, "");
         if (name == "")
@@ -157,11 +157,11 @@ public partial class BluetoothViewModel : ViewModelBase, IHandleBackNavigation
         };
         await _bluetooth.SendAsync(send.ToJsonString());
         await _navigator.OpenPrevious();
-    }*/
+    }
 
     async Task<bool> IHandleBackNavigation.HandleBackAsync()
     {
         await ClearAsync();
         return await Task.FromResult(false);
     }
-}
+}*/

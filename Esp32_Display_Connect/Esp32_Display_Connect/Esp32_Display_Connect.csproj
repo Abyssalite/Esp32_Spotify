@@ -19,16 +19,12 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" />
-    <PackageReference Include="Linux.Bluetooth" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Websocket.Client" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../../Custom_Navigation/Custom_Navigation/Custom_Navigation.csproj" />
     <ProjectReference Include="../../../Custom_EventHub/Custom_EventHub/Custom_EventHub.csproj" />
-    <ProjectReference Include="../../../Custom_Popup/Custom_Popup/Custom_Popup.csproj" />
-
   </ItemGroup>
 </Project>

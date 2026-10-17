@@ -29,7 +29,6 @@ public partial class App : Application
         collection.AddCommonServices();
         collection.AddCustomNavigation();
         collection.AddCustomEventHub();
-        collection.AddCustomPopup();
 
         // Creates a ServiceProvider containing services from the provided IServiceCollection
         Services = collection.BuildServiceProvider();

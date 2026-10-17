@@ -3,10 +3,10 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:Esp32_Display_Connect.ViewModels"
-             x:Class="Esp32_Display_Connect.Views.BluetoothView"
-             x:DataType="vm:BluetoothViewModel">
+             x:Class="Esp32_Display_Connect.Views.BluetoothView">
+             <!--x:DataType="vm:BluetoothViewModel"-->
 
-	<Border x:Name="DeviceSelectBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333" IsVisible="False">
+	<!--<Border x:Name="DeviceSelectBorder" VerticalAlignment="Center" CornerRadius="10" Background="#3333" IsVisible="False">
         <Grid ColumnDefinitions="Auto,*">		
             <Button
                 Grid.Column="0"
@@ -72,7 +72,8 @@
                                                 HorizontalAlignment="Center" 
                                                 VerticalAlignment="Center" 
                                                 FontSize="14" />     
-                                            <TextBlock Text="{Binding Rssi, StringFormat='Strength: {0} dBm'}"                                            HorizontalAlignment="Center" 
+                                            <TextBlock Text="{Binding Rssi, StringFormat='Strength: {0} dBm'}"
+                                                HorizontalAlignment="Center" 
                                                 VerticalAlignment="Center" 
                                                 FontSize="14" />
                                         </StackPanel>
@@ -94,6 +95,6 @@
                     Command="{Binding RescanCommand}" />
             </Grid>
         </Grid>
-	</Border>
+	</Border>-->
 
 </UserControl>

@@ -15,7 +15,7 @@ public partial class BluetoothView : UserControl
     {
         InitializeComponent();
 
-        this.LayoutUpdated += (_, __) =>
+        /*this.LayoutUpdated += (_, __) =>
         {
             _resizeToken?.Cancel();
             _resizeToken = new CancellationTokenSource();
@@ -26,10 +26,10 @@ public partial class BluetoothView : UserControl
                 if (t.IsCanceled) return;
                 Dispatcher.UIThread.InvokeAsync(AdjustStackOrientation);
             });
-        };
+        };*/
     }
 
-    private void AdjustStackOrientation()
+    /*private void AdjustStackOrientation()
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
@@ -71,5 +71,5 @@ public partial class BluetoothView : UserControl
             DeviceSelectBorder.IsVisible = true;
             _layoutInitialized = true;
         }
-    }
+    }*/
 }
